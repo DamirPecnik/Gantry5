@@ -10,6 +10,7 @@ var ready         = require('elements/domready'),
     trim          = require('mout/string/trim'),
     clamp         = require('mout/math/clamp'),
     contains      = require('mout/array/contains'),
+    parseAjaxURI  = require('../utils/get-ajax-url').parse,
     getAjaxSuffix = require('../utils/get-ajax-suffix'),
     validateField = require('../utils/field-validation');
 
@@ -23,7 +24,7 @@ var FOCUSIN   = isFirefox ? 'focus' : 'focusin',
 ready(function() {
     var body = $('body');
 
-    menumanager = new MenuManager('body', {
+    menumanager = new MenuManager('[data-mm-container]', {
         delegate: '.g5-mm-particles-picker ul li, #menu-editor > section ul li, .submenu-column, .submenu-column li, .column-container .g-block',
         droppables: '#menu-editor [data-mm-id]',
         exclude: '[data-lm-nodrag], .fa-cog, .config-cog',
@@ -43,10 +44,13 @@ ready(function() {
     // Refresh ordering/items on menu type change or Menu navigation link
     body.delegate('statechangeAfter', '#main-header [data-g5-ajaxify], select.menu-select-wrap', function(event, element) {
         menumanager.setRoot();
+        menumanager.refresh();
 
-        // refresh LM eraser
-        menumanager.eraser.element = $('[data-mm-eraseparticle]');
-        menumanager.eraser.hide();
+        // refresh MM eraser
+        if (menumanager.eraser) {
+            menumanager.eraser.element = $('[data-mm-eraseparticle]');
+            menumanager.eraser.hide();
+        }
     });
 
     body.delegate(FOCUSIN, '.percentage input', function(event, element) {
@@ -137,35 +141,50 @@ ready(function() {
             active = $('.menu-selector .active'),
             path = active ? active.data('mm-id') : null;
 
+        // do not allow to create a new column if there's already one and it's empty
+        if (count == 1 && !children.search('.submenu-items > [data-mm-id]')) { return false; }
+
         var block = $(last[0].cloneNode(true));
         block.data('mm-id', 'list-' + count);
         block.find('.submenu-items').empty();
         block.after(last);
+
+        if (!menumanager.ordering[path]) {
+            menumanager.ordering[path] = [[]];
+        }
 
         menumanager.ordering[path].push([]);
         menumanager.resizer.evenResize($('.submenu-selector > [data-mm-id]'));
     });
 
     // Attach events to pseudo (x) for deleting a column
-    body.delegate('click', '[data-g5-menu-columns] .submenu-items:empty', function(event, element) {
-        var bounding = element[0].getBoundingClientRect(),
-            x = event.pageX, y = event.pageY,
-            deleter = {
-                width: 36,
-                height: 36
-            };
+    ['click', 'touchend'].forEach(function(evt){
+        body.delegate(evt, '[data-g5-menu-columns] .submenu-items:empty', function(event, element) {
+            var bounding = element[0].getBoundingClientRect(),
+                x = event.pageX || event.changedTouches[0].pageX || 0, y = event.pageY || event.changedTouches[0].pageY || 0,
+                siblings = $('.submenu-selector > [data-mm-id]'),
+                deleter = {
+                    width: 36,
+                    height: 36
+                };
 
-        if (x >= bounding.left + bounding.width - deleter.width && x <= bounding.left + bounding.width &&
-            Math.abs(window.scrollY - y) - bounding.top < deleter.height) {
-            var parent = element.parent('[data-mm-id]'),
-                index = parent.data('mm-id').match(/\d+$/)[0],
-                active = $('.menu-selector .active'),
-                path = active ? active.data('mm-id') : null;
+            if (siblings.length <= 1) {
+                return false;
+            }
 
-            parent.remove();
-            menumanager.ordering[path].splice(index, 1);
-            menumanager.resizer.evenResize($('.submenu-selector > [data-mm-id]'));
-        }
+            if (x >= bounding.left + bounding.width - deleter.width && x <= bounding.left + bounding.width &&
+                Math.abs(window.scrollY - y) - bounding.top < deleter.height) {
+                var parent = element.parent('[data-mm-id]'),
+                    index = parent.data('mm-id').match(/\d+$/)[0],
+                    active = $('.menu-selector .active'),
+                    path = active ? active.data('mm-id') : null;
+
+                parent.remove();
+                siblings = $('.submenu-selector > [data-mm-id]');
+                menumanager.ordering[path].splice(index, 1);
+                menumanager.resizer.evenResize(siblings);
+            }
+        });
     });
 
     // Menu Items settings
@@ -187,11 +206,52 @@ ready(function() {
             remote: $(element).attribute('href') + getAjaxSuffix(),
             remoteLoaded: function(response, content) {
                 var form = content.elements.content.find('form'),
+                    fakeDOM = zen('div').html(response.body.html).find('form'),
                     submit = content.elements.content.search('input[type="submit"], button[type="submit"], [data-apply-and-save]'),
                     dataString = [], invalid = [],
                     path;
 
-                if (!form || !submit) { return true; }
+                var search = content.elements.content.find('.search input'),
+                    blocks = content.elements.content.search('[data-mm-type]'),
+                    filters = content.elements.content.search('[data-mm-filter]'),
+                    urlTemplate = content.elements.content.find('.g-urltemplate');
+
+                if (urlTemplate) { body.emit('input', { target: urlTemplate }); }
+
+                content.elements.content.find('[data-title-editable]').on('title-edit-end', function(title, original, canceled) {
+                    title = trim(title);
+                    if (!title) {
+                        title = trim(original) || 'Title';
+                        this.text(title).data('title-editable', title);
+
+                        return;
+                    }
+                });
+
+                if (search && filters && blocks) {
+                    search.on('input', function() {
+                        if (!this.value()) {
+                            blocks.removeClass('hidden');
+                            return;
+                        }
+
+                        blocks.addClass('hidden');
+
+                        var found = [], value = this.value().toLowerCase(), text;
+
+                        filters.forEach(function(filter) {
+                            filter = $(filter);
+                            text = trim(filter.data('mm-filter')).toLowerCase();
+                            if (text.match(new RegExp("^" + value + '|\\s' + value, 'gi'))) {
+                                found.push(filter.matches('[data-mm-type]') ? filter : filter.parent('[data-mm-type]'));
+                            }
+                        }, this);
+
+                        if (found.length) { $(found).removeClass('hidden'); }
+                    });
+                }
+
+                if ((!form && !fakeDOM) || !submit) { return true; }
 
                 // Menuitems Settings apply
                 submit.on('click', function(e) {
@@ -205,14 +265,15 @@ ready(function() {
                     target.hideIndicator();
                     target.showIndicator();
 
-                    $(form[0].elements).forEach(function(input) {
+                    $(fakeDOM[0].elements).forEach(function(input) {
                         input = $(input);
-                        var name = input.attribute('name'),
-                            value = input.value();
-
+                        var name = input.attribute('name');
                         if (!name) { return; }
+
+                        input = content.elements.content.find('[name="' + name + '"]');
+
                         if (!validateField(input)) { invalid.push(input); }
-                        dataString.push(name + '=' + encodeURIComponent(value));
+                        dataString.push(name + '=' + encodeURIComponent(input.value()));
                     });
 
                     var title = content.elements.content.find('[data-title-editable]');
@@ -227,7 +288,7 @@ ready(function() {
                         return;
                     }
 
-                    request(form.attribute('method'), form.attribute('action') + getAjaxSuffix(), dataString.join('&'), function(error, response) {
+                    request(fakeDOM.attribute('method'), parseAjaxURI(fakeDOM.attribute('action') + getAjaxSuffix()), dataString.join('&'), function(error, response) {
                         if (!response.body.success) {
                             modal.open({
                                 content: response.body.html || response.body,

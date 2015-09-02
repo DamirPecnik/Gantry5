@@ -1,11 +1,11 @@
 "use strict";
 
-var Modal = require('./modal'),
-    Selectize = require('./selectize');
+var Selectize = require('./selectize');
 
 module.exports = {
-    modal: new Modal(),
+    modal: require('./modal'),
     togglers: require('./togglers'),
+    collapse: require('./collapse'),
     selectize: Selectize,
     toastr: require('./toastr')
 };

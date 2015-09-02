@@ -11,13 +11,18 @@ var $             = require('../../utils/elements.utils'),
     deepFillIn    = require('mout/object/deepFillIn'),
     modal         = require('../../ui').modal,
     getAjaxSuffix = require('../../utils/get-ajax-suffix'),
+    parseAjaxURI  = require('../../utils/get-ajax-url').parse,
     getAjaxURL    = require('../../utils/get-ajax-url').global,
     dropzone      = require('dropzone');
 
 var FilePicker = new prime({
     constructor: function(element) {
-        var data = element.data('g5-filepicker');
+        var data = element.data('g5-filepicker'), value;
         this.data = data ? JSON.parse(data) : false;
+
+        if (this.data && !this.data.value) {
+            this.data.value = $(this.data.field).value();
+        }
 
         this.colors = {
             error: '#D84747',
@@ -30,6 +35,10 @@ var FilePicker = new prime({
     },
 
     open: function() {
+        if (this.data) {
+            this.data.value = $(this.data.field).value();
+        }
+
         modal.open({
             method: 'post',
             data: this.data,
@@ -49,17 +58,19 @@ var FilePicker = new prime({
 
         active = $(actives[actives.length - 1]);
         path = JSON.parse(active.data('folder')).pathname;
-        return rtrim(path, '/') + '/';
+        return path.replace(/\/$/, '') + '/';
     },
 
     getPreviewTemplate: function() {
         var li    = zen('li[data-file]'),
+            del   = zen('span.g-file-delete[data-g-file-delete][data-dz-remove]').html('<i class="fa fa-fw fa-trash-o"></i>').bottom(li),
             thumb = zen('div.g-thumb[data-dz-thumbnail]').bottom(li),
             name  = zen('span.g-file-name[data-dz-name]').bottom(li),
             size  = zen('span.g-file-size[data-dz-size]').bottom(li),
             mtime = zen('span.g-file-mtime[data-dz-mtime]').bottom(li);
 
         zen('span.g-file-progress[data-file-uploadprogress]').html('<span class="g-file-progress-text"></span>').bottom(li);
+        zen('div').bottom(thumb);
 
         li.bottom('body');
         var html = li[0].outerHTML;
@@ -73,7 +84,8 @@ var FilePicker = new prime({
             bookmarks = content.search('.g-bookmark'),
             files     = content.find('.g-files'),
             fieldData = deepClone(this.data),
-            colors    = this.colors;
+            colors    = this.colors,
+            self      = this;
 
         this.content = content;
 
@@ -83,14 +95,25 @@ var FilePicker = new prime({
                 previewsContainer: files.find('ul:not(.g-list-labels)')[0],
                 thumbnailWidth: 100,
                 thumbnailHeight: 100,
+                clickable: '[data-upload]',
+                acceptedFiles: this.acceptedFiles(this.data.filter) || '',
+                accept: bind(function(file, done) {
+                    if (!this.data.filter) { done(); }
+                    else {
+                        if (file.name.match(this.data.filter)) { done(); }
+                        else { done('<code>' + file.name + '</code> does not match the filter: <br />  <code>' + this.data.filter + '</code>'); }
+                    }
+                }, this),
                 url: bind(function(file) {
-                    return getAjaxURL('filepicker/upload/' + this.getPath() + file[0].name) + getAjaxSuffix();
+                    return parseAjaxURI(getAjaxURL('filepicker/upload/' + window.btoa(this.getPath() + file[0].name)) + getAjaxSuffix());
                 }, this)
             });
 
-
+            // dropzone events
             this.dropzone.on('thumbnail', function(file, dataUrl) {
-                $(file.previewElement).find('[data-dz-thumbnail]').attribute('style', 'background-image: url(' + dataUrl + ');');
+                var ext = file.name.split('.');
+                ext = (!ext.length || ext.length == 1) ? '-' : ext.reverse()[0];
+                $(file.previewElement).addClass('g-image g-image-' + ext.toLowerCase()).find('[data-dz-thumbnail] > div').attribute('style', 'background-image: url(' + dataUrl + ');');
             });
 
             this.dropzone.on('addedfile', function(file) {
@@ -103,10 +126,13 @@ var FilePicker = new prime({
                         insertLocation: 'bottom'
                     };
 
+                var ext = file.name.split('.');
+                ext = (!ext.length || ext.length == 1) ? '-' : ext.reverse()[0];
+
                 if (!file.type.match(/image.*/)) {
-                    var ext = file.name.split('.');
-                    ext = (!ext.length || ext.length == 1) ? '-' : ext.reverse()[0];
                     element.find('.g-thumb').text(ext);
+                } else {
+                    element.find('.g-thumb').addClass('g-image g-image-' + ext.toLowerCase());
                 }
 
                 progressConf = deepFillIn((isList ? {
@@ -146,7 +172,7 @@ var FilePicker = new prime({
                 element.attribute('title', Math.round(progress) + '%').find('.g-file-progress-text').text(Math.round(progress) + '%').attribute('title', Math.round(progress) + '%');
 
             }).on('complete', function(file) {
-
+                self.refreshFiles(content);
             }).on('error', function(file, error) {
                 var element  = $(file.previewElement),
                     uploader = element.find('[data-file-uploadprogress]'),
@@ -165,10 +191,10 @@ var FilePicker = new prime({
                 });
 
                 text.title('Error').html('<i class="fa fa-exclamation"></i>').parent('[data-file-uploadprogress]').popover({
-                    content: error.html ? error.html : error,
+                    content: error.html ? error.html : (error.error && error.error.message ? error.error.message : error),
                     placement: 'auto',
                     trigger: 'mouse',
-                    style: 'above-modal',
+                    style: 'filepicker, above-modal',
                     width: 'auto',
                     targetEvents: false
                 });
@@ -197,7 +223,8 @@ var FilePicker = new prime({
                     thumb.animate({ opacity: 1 }, {
                         duration: 500,
                         callback: function() {
-                            element.removeClass('g-file-uploading');
+                            element.data('file', JSON.stringify(response.finfo)).data('file-url', response.url).removeClass('g-file-uploading');
+                            element.dropzone = file;
                             uploader.remove();
                             mtime.text('just now');
                         }
@@ -206,6 +233,7 @@ var FilePicker = new prime({
             });
         }
 
+        // g5 events
         content.delegate('click', '.g-bookmark-title', function(e, element) {
             if (event && event.preventDefault) { event.preventDefault(); }
             var sibling = element.nextSibling('.g-folders'),
@@ -219,13 +247,15 @@ var FilePicker = new prime({
 
         content.delegate('click', '[data-folder]', bind(function(event, element) {
             if (event && event.preventDefault) { event.preventDefault(); }
-            var data = JSON.parse(element.data('folder'));
+            var data     = JSON.parse(element.data('folder')),
+                selected = $('[data-file].selected');
 
             fieldData.root = data.pathname;
+            fieldData.value = selected ? selected.data('file-url') : false;
             fieldData.subfolder = true;
 
             element.showIndicator('fa fa-li fa-fw fa-spin-fast fa-spinner');
-            request(getAjaxURL('filepicker') + getAjaxSuffix(), fieldData).send(bind(function(error, response) {
+            request(parseAjaxURI(getAjaxURL('filepicker') + getAjaxSuffix()), fieldData).send(bind(function(error, response) {
                 element.hideIndicator();
                 this.addActiveState(element);
 
@@ -259,9 +289,39 @@ var FilePicker = new prime({
             }, this));
         }, this));
 
+        content.delegate('click', '[data-g-file-delete]', bind(function(event, element) {
+            event.preventDefault();
+            var parent    = element.parent('[data-file]'),
+                data      = JSON.parse(parent.data('file')),
+                deleteURI = parseAjaxURI(getAjaxURL('filepicker/' + window.btoa(data.pathname)) + getAjaxSuffix());
+
+            if (!data.isInCustom) { return false; }
+
+            request('delete', deleteURI, function(error, response) {
+                if (!response.body.success) {
+                    modal.open({
+                        content: response.body.html || response.body,
+                        afterOpen: function(container) {
+                            if (!response.body.html) { container.style({ width: '90%' }); }
+                        }
+                    });
+                } else {
+                    parent.addClass('g-file-deleted');
+                    setTimeout(function() {
+                        parent.remove();
+
+                        self.refreshFiles(content);
+                    }, 210);
+                }
+            });
+        }, this));
+
         content.delegate('click', '[data-file]', bind(function(event, element) {
             if (event && event.preventDefault) { event.preventDefault(); }
-            if (element.hasClass('g-file-error') || element.hasClass('g-file-uploading')) { return; }
+            var target = $(event.target),
+                remove = target.data('g-file-delete') !== null || target.parent('[data-g-file-delete]');
+
+            if (element.hasClass('g-file-error') || element.hasClass('g-file-uploading') || remove) { return; }
             var data = JSON.parse(element.data('file'));
 
             files.search('[data-file]').removeClass('selected');
@@ -271,7 +331,7 @@ var FilePicker = new prime({
         content.delegate('click', '[data-select]', bind(function(event, element) {
             if (event && event.preventDefault) { event.preventDefault(); }
             var selected = files.find('[data-file].selected'),
-                value = selected ? selected.data('file-url') : '';
+                value    = selected ? selected.data('file-url') : '';
 
             $(this.data.field).value(value);
             modal.close();
@@ -338,6 +398,28 @@ var FilePicker = new prime({
         while (parent.tag() == 'ul' && !parent.hasClass('g-folders')) {
             parent.previousSibling().addClass('active');
             parent = parent.parent();
+        }
+    },
+
+    acceptedFiles: function(filter) {
+        var attr = '';
+        switch (filter) {
+            case '.(jpe?g|gif|png|svg)$':
+                attr = '.jpg,.jpeg,.gif,.png,.svg';
+                break;
+            case '.(mp4|webm|ogv|mov)$':
+                attr = '.mp4,.webm,.ogv,.mov';
+                break;
+        }
+
+        return attr;
+    },
+
+    refreshFiles: function(content) {
+        var active = $('[data-folder].active'),
+            folder = active[active.length - 1];
+        if (folder) {
+            content.emit('click', { target: $(folder) });
         }
     }
 });

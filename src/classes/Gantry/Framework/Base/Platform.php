@@ -40,13 +40,14 @@ abstract class Platform
 
         //Make sure that cache folder exists, otherwise it will be removed from the lookup.
         $cachePath = $this->getCachePath();
-        Folder::create(GANTRY5_ROOT . '/' . $cachePath);
+        Folder::create($cachePath);
 
         $this->items = [
             'streams' => [
                 // Cached files.
                 'gantry-cache' => [
                     'type' => 'Stream',
+                    'force' => true,
                     'prefixes' => ['' => [$cachePath]]
                 ],
                 // Container for all frontend themes.
@@ -159,6 +160,11 @@ abstract class Platform
     public function getEditor($name, $content = '', $width = null, $height = null)
     {
         return null;
+    }
+
+    public function filter($text)
+    {
+        return $text;
     }
 
     public function finalize()

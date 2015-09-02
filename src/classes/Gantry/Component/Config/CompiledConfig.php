@@ -22,6 +22,11 @@ use Gantry\Component\File\CompiledYamlFile;
 class CompiledConfig extends CompiledBase
 {
     /**
+     * @var int Version number for the compiled file.
+     */
+    public $version = 1;
+
+    /**
      * @var Config  Configuration object.
      */
     protected $object;
@@ -32,6 +37,11 @@ class CompiledConfig extends CompiledBase
     protected $callable;
 
     /**
+     * @var bool
+     */
+    protected $withDefaults;
+
+    /**
      * @param  string $cacheFolder  Cache folder to be used.
      * @param  array  $files  List of files as returned from ConfigFileFinder class.
      * @param  callable  $blueprints  Lazy load function for blueprints.
@@ -39,12 +49,25 @@ class CompiledConfig extends CompiledBase
      */
     public function __construct($cacheFolder, array $files, callable $blueprints = null)
     {
-        if (!$blueprints) {
+        /*
+        if (is_null($blueprints)) {
             throw new \BadMethodCallException('You cannot instantiate configuration without blueprints.');
         }
+        */
         parent::__construct($cacheFolder, $files);
 
         $this->callable = $blueprints;
+    }
+
+    /**
+     * @param bool $withDefaults
+     * @return mixed
+     */
+    public function load($withDefaults = false)
+    {
+        $this->withDefaults = $withDefaults;
+
+        return parent::load();
     }
 
     /**
@@ -54,6 +77,11 @@ class CompiledConfig extends CompiledBase
      */
     protected function createObject(array $data = [])
     {
+        if ($this->withDefaults && empty($data) && is_callable($this->callable)) {
+            $blueprints = $this->callable;
+            $data = $blueprints()->getDefaults();
+        }
+
         $this->object = new Config($data, $this->callable);
     }
 

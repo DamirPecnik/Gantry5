@@ -47,9 +47,13 @@ class ConfigServiceProvider implements ServiceProviderInterface
         /** @var UniformResourceLocator $locator */
         $locator = $container['locator'];
 
-        $cache = $locator->findResource('gantry-cache://compiled/blueprints', true, true);
-        $paths = $locator->findResources('gantry-blueprints://config');
-        $files = (new ConfigFileFinder)->locateFiles($paths);
+        $cache = $locator->findResource('gantry-cache://theme/compiled/blueprints', true, true);
+
+        $files = [];
+        $paths = $locator->findResources('gantry-particles://');
+        $files += (new ConfigFileFinder)->setBase('particles')->locateFiles($paths);
+        $paths = $locator->findResources('gantry-theme://blueprints');
+        $files += (new ConfigFileFinder)->locateFiles($paths);
 
         $config = new CompiledBlueprints($cache, $files);
 
@@ -72,12 +76,16 @@ class ConfigServiceProvider implements ServiceProviderInterface
         // Locate all configuration files to be compiled.
         $files = (new ConfigFileFinder)->locateFiles($paths);
 
-        $cache = $locator->findResource('gantry-cache://compiled/config', true, true);
+        $cache = $locator->findResource('gantry-cache://theme/compiled/config', true, true);
+
+        if (!$cache) {
+            throw new \RuntimeException('Who just removed Gantry 5 cache folder? Try reloading the page if it fixes the issue');
+        }
 
         $config = new CompiledConfig($cache, $files, function() use ($container) {
             return $container['blueprints'];
         });
 
-        return $config->load();
+        return $config->load(true);
     }
 }

@@ -1,0 +1,121 @@
+body.gantry5 {
+    margin: 0;
+    padding: 0;
+    max-width: inherit;
+
+    &.auto-fold {
+        #wpcontent {
+            padding-left: 0;
+        }
+    }
+
+    color: $light-gray;
+    background-color: $body-bg;
+
+    #g5-container {
+        a:focus {
+            box-shadow: none;
+        }
+
+        dd, li {
+            margin-bottom: 0;
+        }
+
+        li {
+            line-height: inherit;
+        }
+
+        textarea, input {
+            box-shadow: none;
+            color: $form-input-text;
+        }
+
+        input, button, select, textarea {
+            font-family: inherit;
+        }
+
+        input[type="checkbox"] {
+            height: 16px;
+            display: inline-block;
+            &:checked:before {
+                height: 16px;
+            }
+            &:not(.settings-param-toggle) {
+                position: inherit;
+            }
+        }
+
+        .main-block {
+            min-height: 81.5vh;
+        }
+
+        .inner-container {
+            margin: 0;
+        }
+
+        .card {
+            max-width: none;
+            box-shadow: none;
+        }
+
+        .preview {
+            float: none;
+        }
+
+        .search {
+            background: none;
+            color: inherit;
+        }
+
+        .g5-dialog, .g5-popover.g5-popover-above-modal {
+            z-index: 99999;
+        }
+
+        #assignments {
+            .settings-param-section {
+                background-color: #fafafa;
+                .enabler {
+                    display: none;
+                }
+
+                .settings-param-section-title {
+                    font-weight: bold;
+                    color: #b2b2b2;
+                    text-transform: uppercase;
+                }
+            }
+
+            .settings-param-title {
+                font-size: 0.8rem;
+            }
+        }
+
+    }
+
+    form {
+        margin-bottom: 1em;
+    }
+
+
+    #wpbody-content {
+        padding-bottom: 0;
+    }
+
+    input[disabled],
+    select[disabled],
+    textarea[disabled],
+    input[readonly],
+    select[readonly],
+    textarea[readonly] {
+        cursor: not-allowed;
+        background-color: #eee;
+    }
+
+    input[type="radio"][disabled],
+    input[type="checkbox"][disabled],
+    input[type="radio"][readonly],
+    input[type="checkbox"][readonly] {
+        background-color: transparent;
+    }
+
+}

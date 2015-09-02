@@ -11,12 +11,9 @@
 }
 
 .settings-block {
-    width: 48%;
+    width: 100%;
+
     min-width: inherit;
-    @include breakpoint(mobile-only) {
-        margin: 1% 0;
-        width: 100%;
-    }
 
     &.card {
         .badge {
@@ -32,11 +29,28 @@
         color: $orange;
     }
 
+    .alert {
+        margin: $content-margin 0;
+    }
+
+    h4.card-overrideable {
+        padding: 4px 8px;
+        .enabler {
+            margin-right: 2rem;
+        }
+    }
+
     .settings-param {
+        @extend .clearfix;
         padding: 10px 5px;
         clear: both;
         position: relative;
         border-bottom: 1px solid #f4f4f4;
+
+        &.input-hidden {
+            display: none;
+            @extend %list-reset;
+        }
 
         &:last-child {
             border-bottom: 0;
@@ -54,13 +68,25 @@
         }
     }
 
+    .g-instancepicker-title {
+        margin-right: 0.5rem;
+        font-style: italic;
+        &:empty {
+            margin: 0;
+        }
+    }
+
+    .input-small {
+        width: 120px !important;
+    }
+
     input.settings-param-toggle {
         position: absolute;
         top: 50%;
         right: 0;
         margin: -7px 15px 0 0;
         z-index: 5;
-        
+
         &:checked {
             + .settings-param-override {
                 opacity: 0;
@@ -81,11 +107,12 @@
         z-index: 4;
         opacity: 1;
         @include transition(opacity 0.3s ease-in-out, z-index 0.3s ease-in-out);
+        @include backface-visibility(hidden);
         /*@include linear-gradient(90deg, transparentize($white, 0.7) 0%, transparentize($white, 0.7) 150px, transparentize($white, 0.4) 150px, transparentize($white, 0.4) 100%);*/
     }
 
     .settings-param-field {
-        margin-left: 150px;
+        margin-left: 175px;
 
         // fields reset
         .g-reset-field {
@@ -112,7 +139,7 @@
     }
 
     .settings-param-title {
-        max-width: 150px;
+        max-width: 175px;
         margin: 5px;
     }
 
@@ -131,7 +158,7 @@
         vertical-align: inherit;
     }
 
-    input, textarea {
+    input, textarea, select {
         padding: 6px 12px;
         border: 1px solid $medium-gray;
         margin: 0;
@@ -140,14 +167,27 @@
         font-size: $core-font-size;
         line-height: $core-line-height;
         border-radius: $core-border-radius;
+
+        &:focus {
+            border-color: rgba($core-accent, .5);
+        }
+    }
+
+    .colorpicker {
+        input {
+            &:focus {
+                border-color: $medium-gray;
+            }
+        }
     }
 
     select {
         margin: 0 0 10px;
         display: inline-block;
+        height: 38px;
     }
 
-    input:not(.settings-param-toggle), select, .collection-list ul, .colorpicker, .multi.selectize-control {
+    input:not(.settings-param-toggle):not([type="checkbox"]), select, .collection-list ul, .colorpicker, .multi.selectize-control {
         width: 250px;
         @include breakpoint(no-desktop) {
             width: 100%;
@@ -162,9 +202,12 @@
     .input-group {
         &.append, &.prepend {
             input {
-                width: 209px;
-                @include breakpoint(no-desktop) {
-                    width: 100%;
+                width: 210px;
+                @include breakpoint(tablet-range) {
+                    width: 100% !important;
+                }
+                @include breakpoint(mobile-only) {
+                    width: 100% !important;
                 }
             }
         }
@@ -193,6 +236,38 @@
             right: 10px;
             top: 50%;
             margin-top: -12px;
+        }
+    }
+}
+
+.g-panel-filters {
+    position: relative;
+    margin-bottom: 1rem;
+    display: inline-block;
+
+    .search.settings-block {
+        width: auto;
+        display: inline-block;
+        margin-bottom: 0;
+        margin-right: 5px;
+    }
+
+    .search, input, .button {
+        font-size: 0.85rem;
+    }
+}
+
+.g-filters-bar {
+    label {
+        @extend .font-small;
+        display: inline-block;
+        margin: 0 0 0 1rem;
+        border-left: 1px solid $medium-gray;
+        line-height: 30px;
+        padding-left: 1rem;
+
+        input {
+            display: inline-block;
         }
     }
 }
@@ -239,10 +314,13 @@
     ul {
         @extend %list-reset;
         margin: 5px 0;
+        display: table;
 
         li {
-            padding: 0.1rem 0;
+            //padding: 0.1rem 0;
             position: relative;
+            display: table-row;
+            line-height: $core-line-height - 0.2;
 
             &:only-child {
                 .fa-reorder {
@@ -259,6 +337,7 @@
     .item-reorder {
         cursor: row-resize;
         color: lighten($dark-gray, 20%);
+        display: table-cell;
     }
 }
 
@@ -278,14 +357,18 @@
         color: $core-text;
         margin-left: 5px;
         vertical-align: middle;
+        display: table-cell;
+        padding: 0.3rem 0.4rem;
     }
 
     [data-title-edit], [data-collection-remove] {
         cursor: pointer;
         color: lighten($dark-gray, 40%);
-        float: right;
-        margin-top: 0.4rem;
+        //float: right;
+        //margin-top: 0.4rem;
         opacity: 0;
+        display: table-cell;
+        padding-left: 0.4rem;
         //@include transition(all 0.2s ease-in-out);
     }
 }

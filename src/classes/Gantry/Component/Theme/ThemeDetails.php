@@ -32,7 +32,10 @@ class ThemeDetails implements \ArrayAccess
         /** @var UniformResourceLocator $locator */
         $locator = $gantry['locator'];
 
-        $this->items = CompiledYamlFile::instance($locator("gantry-themes://{$theme}/gantry/theme.yaml"))->content();
+        $file = $locator->findResource("gantry-themes://{$theme}/gantry/theme.yaml");
+        $cache = $locator->findResource("gantry-cache://{$theme}/compiled/yaml", true, true);
+
+        $this->items = CompiledYamlFile::instance($file)->setCachePath($cache)->content();
         $this->offsetSet('name', $theme);
 
         $parent = $this->offsetGet('configuration.theme.parent') ?: $theme;
@@ -43,13 +46,16 @@ class ThemeDetails implements \ArrayAccess
     public function getPaths()
     {
         $paths = array_merge(
+            (array) $this->get('configuration.theme.overrides', 'gantry-theme://custom'),
             ['gantry-theme://'],
             (array) $this->get('configuration.theme.base', 'gantry-theme://common')
         );
 
         $parent = $this->getParent();
         if ($parent) {
-            $paths[] = "gantry-themes-{$parent}://";
+            // Stream needs to be valid URL.
+            $streamName = 'gantry-themes-' . preg_replace('|[^a-z\d+.-]|ui', '-', $parent);
+            $paths[] = "{$streamName}://";
         }
 
         return $this->parsePaths($paths);
@@ -64,7 +70,10 @@ class ThemeDetails implements \ArrayAccess
         }
         if (!strpos($uri, '://')) {
             $name = $this->offsetGet('name');
-            $uri = "gantry-themes-{$name}://{$uri}";
+
+            // Stream needs to be valid URL.
+            $streamName = 'gantry-themes-' . preg_replace('|[^a-z\d+.-]|ui', '-', $name);
+            $uri = "{$streamName}://{$uri}";
         }
 
         return $uri;

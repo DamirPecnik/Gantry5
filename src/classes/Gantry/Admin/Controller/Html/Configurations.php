@@ -19,7 +19,7 @@ use Gantry\Component\Request\Request;
 use Gantry\Component\Response\HtmlResponse;
 use Gantry\Component\Response\JsonResponse;
 use Gantry\Component\Response\Response;
-use Gantry\Framework\Configurations as ConfigurationsObject;
+use Gantry\Framework\Outlines as OutlinesObject;
 use RocketTheme\Toolbox\ResourceLocator\UniformResourceLocator;
 
 class Configurations extends HtmlController
@@ -71,20 +71,25 @@ class Configurations extends HtmlController
 
     public function create()
     {
-        /** @var ConfigurationsObject $configurations */
+        /** @var OutlinesObject $configurations */
         $configurations = $this->container['configurations'];
 
-        /** @var Request $request */
-        $request = $this->container['request'];
+        $title = $this->request->post->get('title', 'Untitled');
+        $preset = $this->request->post->get('preset', 'default');
 
-        $configurations->create($request->get('title'), $request->get('preset'));
+        $id = $configurations->create($title, $preset);
 
-        return new JsonResponse(['html' => 'Configuration created.']);
+        $html = $this->container['admin.theme']->render(
+            '@gantry-admin/layouts/outline.html.twig',
+            ['name' => $id, 'title' => $title]
+        );
+
+        return new JsonResponse(['html' => 'Outline created.', 'id' => "outline-{$id}", 'outline' => $html]);
     }
 
     public function rename($configuration)
     {
-        /** @var ConfigurationsObject $configurations */
+        /** @var OutlinesObject $configurations */
         $configurations = $this->container['configurations'];
         $list = $configurations->user();
 
@@ -92,17 +97,20 @@ class Configurations extends HtmlController
             $this->forbidden();
         }
 
-        /** @var Request $request */
-        $request = $this->container['request'];
+        $title = $this->request->post['title'];
+        $id = $configurations->rename($configuration, $title);
 
-        $configurations->rename($configuration, $request->get('title'));
+        $html = $this->container['admin.theme']->render(
+            '@gantry-admin/layouts/outline.html.twig',
+            ['name' => $id, 'title' => $title]
+        );
 
-        return new JsonResponse(['html' => 'Configuration renamed.']);
+        return new JsonResponse(['html' => 'Outline renamed.', 'id' => "outline-{$configuration}", 'outline' => $html]);
     }
 
     public function duplicate($configuration)
     {
-        /** @var ConfigurationsObject $configurations */
+        /** @var OutlinesObject $configurations */
         $configurations = $this->container['configurations'];
 
         // Handle special case on duplicating a preset.
@@ -111,9 +119,11 @@ class Configurations extends HtmlController
             if (empty($preset)) {
                 throw new \RuntimeException('Preset not found');
             }
-            $configurations->create(ucwords(trim(str_replace('_', ' ', $configuration))), $configuration);
+            $id = $configurations->create(ucwords(trim(str_replace('_', ' ', $configuration))), $configuration);
 
-            return new JsonResponse(['html' => 'System configuration duplicated.']);
+            // TODO: add html output like to the others.
+
+            return new JsonResponse(['html' => 'System configuration duplicated.', 'id' => $id]);
         }
 
         $list = $configurations->user();
@@ -124,12 +134,12 @@ class Configurations extends HtmlController
 
         $configurations->duplicate($configuration);
 
-        return new JsonResponse(['html' => 'Configuration duplicated.']);
+        return new JsonResponse(['html' => 'Outline duplicated.']);
     }
 
     public function delete($configuration)
     {
-        /** @var ConfigurationsObject $configurations */
+        /** @var OutlinesObject $configurations */
         $configurations = $this->container['configurations'];
         $list = $configurations->user();
 
@@ -139,7 +149,7 @@ class Configurations extends HtmlController
 
         $configurations->delete($configuration);
 
-        return new JsonResponse(['html' => 'Configuration deleted.']);
+        return new JsonResponse(['html' => 'Outline deleted.', 'outline' => $configuration]);
     }
 
     public function forward()
@@ -159,7 +169,7 @@ class Configurations extends HtmlController
         $this->params['configuration'] = $configuration;
         $this->params['location'] = $resource;
         $this->params['configuration_page'] = $page;
-        $this->params['navbar'] = !empty($_GET['navbar']);
+        $this->params['navbar'] = !empty($this->request->get['navbar']);
 
         return $this->executeForward($resource, $method, $path, $this->params);
     }
@@ -168,7 +178,7 @@ class Configurations extends HtmlController
     {
         $class = '\\Gantry\\Admin\\Controller\\Html\\' . strtr(ucwords(strtr($resource, '/', ' ')), ' ', '\\');
         if (!class_exists($class)) {
-            throw new \RuntimeException('Configuration not found', 404);
+            throw new \RuntimeException('Outline not found', 404);
         }
 
         /** @var HtmlController $controller */

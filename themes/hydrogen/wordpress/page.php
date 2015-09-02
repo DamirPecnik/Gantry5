@@ -1,5 +1,16 @@
 <?php
 /**
+ * @package   Gantry 5 Theme
+ * @author    RocketTheme http://www.rockettheme.com
+ * @copyright Copyright (C) 2007 - 2015 RocketTheme, LLC
+ * @license   GNU/GPLv2 and later
+ *
+ * http://www.gnu.org/licenses/gpl-2.0.html
+ */
+
+defined( 'ABSPATH' ) or die;
+
+/*
  * The template for displaying all pages.
  *
  * This is the template that displays all pages by default.
@@ -8,20 +19,15 @@
  * different template.
  *
  * To generate specific templates for your pages you can use:
- * /mytheme/views/page-mypage.twig
+ * /mytheme/views/page-mypage.html.twig
  * (which will still route through this PHP file)
  * OR
  * /mytheme/page-mypage.php
  * (in which case you'll want to duplicate this file and save to the above path)
- *
- * Methods for TimberHelper can be found in the /functions sub-directory
- *
- * @package  WordPress
- * @subpackage  Timber
- * @since    Timber 0.1
  */
 
 $context = Timber::get_context();
 $post = new TimberPost();
-$context['post'] = $post;
-Timber::render( array( 'page-' . $post->post_name . '.twig', 'page.twig' ), $context );
+$context[ 'post' ] = $post;
+
+Timber::render( [ 'page-' . $post->post_name . '.html.twig', 'page.html.twig' ], $context );

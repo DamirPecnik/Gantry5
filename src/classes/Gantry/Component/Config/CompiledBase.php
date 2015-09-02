@@ -23,6 +23,11 @@ use RocketTheme\Toolbox\File\PhpFile;
 abstract class CompiledBase
 {
     /**
+     * @var int Version number for the compiled file.
+     */
+    public $version = 1;
+
+    /**
      * @var string|bool  Configuration checksum.
      */
     public $checksum;
@@ -91,7 +96,7 @@ abstract class CompiledBase
     public function checksum()
     {
         if (!isset($this->checksum)) {
-            $this->checksum = md5(json_encode($this->files));
+            $this->checksum = md5(json_encode($this->files) . $this->version);
         }
 
         return $this->checksum;
@@ -189,7 +194,11 @@ abstract class CompiledBase
         $file = PhpFile::instance($filename);
 
         // Attempt to lock the file for writing.
-        $file->lock(false);
+        try {
+            $file->lock(false);
+        } catch (\Exception $e) {
+            // Another process has locked the file; we will check this in a bit.
+        }
 
         if ($file->locked() === false) {
             // File was already locked by another process.

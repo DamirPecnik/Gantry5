@@ -10,13 +10,16 @@ var $              = require('elements'),
     modal          = ui.modal,
     toastr         = ui.toastr,
 
+    parseAjaxURI   = require('./utils/get-ajax-url').parse,
+    getAjaxURL     = require('./utils/get-ajax-url').global,
     getAjaxSuffix  = require('./utils/get-ajax-suffix'),
 
     flags          = require('./utils/flags-state'),
     validateField  = require('./utils/field-validation'),
     lm             = require('./lm'),
     mm             = require('./menu'),
-    configurations = require('./configurations');
+    configurations = require('./configurations'),
+    changelog      = require('./changelog');
 
 require('elements/attributes');
 require('elements/events');
@@ -28,9 +31,9 @@ require('./ui/popover');
 require('./utils/ajaxify-links');
 require('./utils/rAF-polyfill');
 
-var createHandler = function(divisor,noun,restOfString){
-    return function(diff){
-        var n = Math.floor(diff/divisor);
+var createHandler = function(divisor, noun, restOfString) {
+    return function(diff) {
+        var n = Math.floor(diff / divisor);
         var pluralizedNoun = noun + ( n > 1 ? 's' : '' );
         return "" + n + " " + pluralizedNoun + " " + restOfString;
     }
@@ -57,10 +60,10 @@ var formatters = [
 ];
 
 var prettyDate = {
-    format: function (date) {
+    format: function(date) {
         var diff = (((new Date()).getTime() - date.getTime()) / 1000);
-        for( var i=0; i<formatters.length; i++ ){
-            if( diff < formatters[i].threshold ){
+        for (var i = 0; i < formatters.length; i++) {
+            if (diff < formatters[i].threshold) {
                 return formatters[i].handler(diff);
             }
         }
@@ -68,7 +71,7 @@ var prettyDate = {
     }
 };
 
-window.onbeforeunload = function(){
+window.onbeforeunload = function() {
     if (flags.get('pending')) {
         return 'You haven\'t saved your changes and by leaving the page they will be lost.\nDo you want to leave without saving?';
     }
@@ -90,7 +93,7 @@ ready(function() {
     });
 
     // Extras
-    body.delegate('click', '[data-g-extras]', function(event, element){
+    body.delegate('click', '[data-g-extras]', function(event, element) {
         if (event && event.preventDefault) { event.preventDefault(); }
 
         if (!element.PopoverDefined) {
@@ -98,21 +101,30 @@ ready(function() {
                 popover = element.getPopover({
                     style: 'extras',
                     width: 220,
-                    content: zen('ul').html(content.html())[0].outerHTML
+                    content: zen('ul').html(content.html())[0].outerHTML,
+                    allowElementsClick: '.toggle'
                 });
+            element.on('shown.popover', function(popover){
+                element.attribute('aria-expanded', true).attribute('aria-hidden', false);
+                element.find('.enabler')[0].focus();
+            });
+
+            element.on('hide.popover', function(popover){
+                element.attribute('aria-expanded', false).attribute('aria-hidden', true);
+            });
 
             element.getPopover().show();
         }
     });
 
     // Platform Settings redirect
-    body.delegate('mousedown', '[data-settings-key]', function(event, element){
+    body.delegate('mousedown', '[data-settings-key]', function(event, element) {
         var key = element.data('settings-key');
         if (!key) { return true; }
 
         var redirect = window.location.search,
             settings = element.attribute('href'),
-            uri = window.location.href.split('?');
+            uri      = window.location.href.split('?');
         if (uri.length > 1 && uri[0].match(/index.php$/)) { redirect = 'index.php' + redirect; }
 
         redirect = setParam(settings, key, btoa(redirect));
@@ -120,7 +132,7 @@ ready(function() {
     });
 
     // Save Tooltip
-    body.delegate('mouseover', '.button-save', function(event, element){
+    body.delegate('mouseover', '.button-save', function(event, element) {
         if (!element.lastSaved) { return true; }
         element.addClass('g-tooltip').addClass('g-tooltip-right').data('title', 'Last Saved: ' + prettyDate.format(element.lastSaved));
     });
@@ -128,16 +140,17 @@ ready(function() {
     // Save
     body.delegate('click', '.button-save', function(event, element) {
         if (event && event.preventDefault) { event.preventDefault(); }
+        var saves = $('.button-save');
 
-        element.hideIndicator();
-        element.showIndicator();
+        saves.hideIndicator();
+        saves.showIndicator();
 
         var data    = {},
             invalid = [],
             type    = element.data('save'),
             extras  = '',
             page    = $('[data-lm-root]') ? 'layout' : ($('[data-mm-id]') ? 'menu' : 'other'),
-            saveURL = trim(window.location.href, '#') + getAjaxSuffix();
+            saveURL = parseAjaxURI(trim(window.location.href, '#') + getAjaxSuffix());
 
         switch (page) {
             case 'layout':
@@ -155,7 +168,7 @@ ready(function() {
                 data.ordering = JSON.stringify(mm.menumanager.ordering);
                 data.items = JSON.stringify(mm.menumanager.items);
 
-                saveURL = element.parent('form').attribute('action') + getAjaxSuffix();
+                saveURL = parseAjaxURI(element.parent('form').attribute('action') + getAjaxSuffix());
                 break;
 
             case 'other':
@@ -167,7 +180,7 @@ ready(function() {
                         input = $(input);
                         var name     = input.attribute('name'),
                             value    = input.value(),
-                            parent   = input.parent('.settings-param'),
+                            parent   = input.parent('.settings-param, .card-overrideable'),
                             override = parent ? parent.find('> input[type="checkbox"]') : null;
 
                         if (!name || input.disabled() || (override && !override.checked())) { return; }
@@ -175,13 +188,11 @@ ready(function() {
                         data[name] = value;
                     });
                 }
-
-                if ($('#styles')) { extras = '<br />The CSS was successfully compiled!'; }
         }
 
         if (invalid.length) {
-            element.hideIndicator();
-            element.showIndicator('fa fa-fw fa-exclamation-triangle');
+            saves.hideIndicator();
+            saves.showIndicator('fa fa-fw fa-exclamation-triangle');
             toastr.error('Please review the fields in the page and ensure you correct any invalid one.', 'Invalid Fields');
             return;
         }
@@ -199,15 +210,22 @@ ready(function() {
                 });
             } else {
                 modal.close();
-                toastr.success(interpolate(sentence, {
+
+                if ($('#styles')) {
+                    extras = '<br />' + (response.body.warning ? '<hr />' + response.body.title + '<br />' + response.body.html : 'The CSS was successfully compiled!');
+                }
+
+                toastr[response.body.warning ? 'warning' : 'success'](interpolate(sentence, {
                     verb: type.slice(-1) == 's' ? 'have' : 'has',
                     type: type,
                     extras: extras
                 }), type + ' Saved');
             }
 
-            element.hideIndicator();
-            element.lastSaved = new Date();
+            saves.hideIndicator();
+            saves.forEach(function(save) {
+                $(save).lastSaved = new Date();
+            });
 
             if (page == 'layout') { lm.layoutmanager.updatePendingChanges(); }
 
@@ -218,6 +236,14 @@ ready(function() {
     });
 
     // Editable titles
+    body.delegate('keydown', '[data-title-edit]', function(event, element) {
+        var key = (event.which ? event.which : event.keyCode);
+        if (key == 32 || key == 13) { // ARIA support: Space / Enter toggle
+            event.preventDefault();
+            body.emit('click', event);
+        }
+    });
+
     body.delegate('click', '[data-title-edit]', function(event, element) {
         element = $(element);
         if (element.hasClass('disabled')) { return false; }
@@ -248,6 +274,7 @@ ready(function() {
             case 13: // return
             case 27: // esc
                 event.stopPropagation();
+
                 if (event.keyCode == 27) {
                     if (typeof element.storedTitle !== 'undefined') {
                         element.text(element.storedTitle);
@@ -256,7 +283,6 @@ ready(function() {
                 }
 
                 element.attribute('contenteditable', null);
-                window.getSelection().removeAllRanges();
                 element[0].blur();
 
                 element.emit('title-edit-exit', element.data('title-editable'), event.keyCode == 13 ? 'enter' : 'esc');
@@ -268,6 +294,7 @@ ready(function() {
 
     body.delegate('blur', '[data-title-editable]', function(event, element) {
         element = $(element);
+        element[0].scrollLeft = 0;
         element.attribute('contenteditable', null);
         element.data('title-editable', trim(element.text()));
         window.getSelection().removeAllRanges();
@@ -285,7 +312,7 @@ ready(function() {
         if (!href) { return false; }
 
         indicator.showIndicator();
-        request(method, href + getAjaxSuffix(), function(error, response) {
+        request(method, parseAjaxURI(href + getAjaxSuffix()), function(error, response) {
             if (!response.body.success) {
                 modal.open({
                     content: response.body.html || response.body,
@@ -297,7 +324,7 @@ ready(function() {
                 indicator.hideIndicator();
                 return false;
             } else {
-                toastr.success(response.body.html || 'Action successfully completed.', response.body.title || '');
+                toastr[response.body.warning ? 'warning' : 'success'](response.body.html || 'Action successfully completed.', response.body.title || '');
             }
 
             indicator.hideIndicator();

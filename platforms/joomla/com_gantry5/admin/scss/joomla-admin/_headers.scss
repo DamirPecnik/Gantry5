@@ -25,9 +25,14 @@ body.com_gantry5 {
 
 	        ul {
 	            li {
+                    a {
+                        &:focus {
+                            background: darken($core-accent, 8%);
+                        }
+                    }
 	                &:hover {
 	                    a {
-	                        background: darken($core-accent, 5%);
+	                        background: darken($core-accent, 8%);
 	                    }
 	                }
 	                &.active {
@@ -42,13 +47,6 @@ body.com_gantry5 {
 
 	    #navbar {
 	    	padding: 0 0.625rem;
-	    }
-
-	    .navbar-block {
-
-	    	.gantry-logo {
-    			right: 1.563rem;
-    		}
 	    }
 
 	    .inner-header {

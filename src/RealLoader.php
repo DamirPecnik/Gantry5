@@ -45,14 +45,11 @@ abstract class RealLoader
             throw new \LogicException(self::$errorMessageGantryLoaded);
         }
 
-        define('GANTRY5_VERSION', '5.0.0-rc.1');
+        define('GANTRY5_VERSION', '@version@');
+        define('GANTRY5_VERSION_DATE', '@versiondate@');
 
         if (!defined('DS')) {
             define('DS', DIRECTORY_SEPARATOR);
-        }
-
-        if (!defined('GANTRY5_DEBUG')) {
-            define('GANTRY5_DEBUG', false);
         }
 
         return self::autoload();

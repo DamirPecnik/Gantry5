@@ -1,13 +1,12 @@
 <div class="card settings-block">
-    <h4>Are you sure you want to leave this Page?</h4>
-    <div class="inner-params">
-        You haven't saved your changes and by leaving the page they will be lost.
-        Do you want to leave without saving?
+    <h4 id="g-modal-labelledby">{{ 'GANTRY5_PLATFORM_UNSAVED'|trans }}</h4>
+    <div id="g-modal-describedby" class="inner-params">
+        {{ 'GANTRY5_PLATFORM_UNSAVED_DESC'|trans }}
     </div>
 </div>
 
 <div class="g-modal-actions">
-    <a class="button button-primary" data-g-unsaved-save>Save Before Leaving</a>
-    <a class="button g5-dialog-close" data-g-unsaved-discard>Discard Changes</a>
-    <a class="button g5-dialog-close" data-g-unsaved-stay>Remain on This Page</a>
+    <button tabindex="0" class="button button-primary" role="button" data-g-unsaved-save>{{ 'GANTRY5_PLATFORM_UNSAVED_SAVE'|trans }}</button>
+    <button tabindex="0" class="button g5-dialog-close" role="button" data-g-unsaved-discard>{{ 'GANTRY5_PLATFORM_UNSAVED_DISCARD'|trans }}</button>
+    <button tabindex="0" class="button g5-dialog-close" role="button" data-g-unsaved-stay>{{ 'GANTRY5_PLATFORM_UNSAVED_STAY'|trans }}</button>
 </div>

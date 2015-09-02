@@ -1,18 +1,18 @@
 details:
   name: Hydrogen
-  version: "5.0.0-rc.1"
+  version: "@version@"
   icon: paper-plane
-  date: May 8, 2015
+  date: @versiondate@
   author:
     name: RocketTheme, LLC
     email: support@rockettheme.com
     link: http://www.rockettheme.com
 
   documentation:
-    link: http://www.rockettheme.com/docs/joomla/templates/hydrogen
+    link: http://www.rockettheme.com/docs/wordpress/theme/hydrogen
 
   support:
-    link: http://www.rockettheme.com/forum/joomla-template-hydrogen
+    link: http://www.rockettheme.com/forum/wordpress-theme-hydrogen
 
   updates:
     link: http://updates.rockettheme.com/themes/hydrogen.yaml
@@ -37,6 +37,7 @@ configuration:
     base: gantry-theme://common
     file: gantry-theme://include/theme.php
     class: \Gantry\Framework\Theme
+    textdomain: g5_hydrogen
 
   fonts:
     roboto:
@@ -51,9 +52,12 @@ configuration:
       - gantry-engine://scss
     files:
       - hydrogen
+      - hydrogen-wordpress
       - custom
     persistent:
       - hydrogen
+    overrides:
+      - hydrogen-wordpress
       - custom
 
   dependencies:
@@ -61,6 +65,13 @@ configuration:
     engine/nucleus: 1.0.*
     asset/font-awesome: 4.2
     particle/menu: 1.0.*
+
+chrome:
+  gantry:
+    before_widget: <div id="%1s" class="widget %2s">
+    after_widget: </div>
+    before_title: <h2 class="widgettitle">
+    after_title: </h2>
 
 admin:
   styles:
@@ -70,3 +81,37 @@ admin:
       - subfeature
     core:
       - base
+  content:
+    blog:
+      - heading
+      - featured-image
+      - title
+      - meta-date
+      - meta-author
+      - meta-comments
+      - meta-categories
+      - meta-tags
+      - read-more
+    single:
+      - featured-image
+      - title
+      - meta-date
+      - meta-author
+      - meta-comments
+      - meta-categories
+      - meta-tags
+    page:
+      - featured-image
+      - title
+      - meta-date
+      - meta-author
+    archive:
+      - heading
+      - featured-image
+      - title
+      - meta-date
+      - meta-author
+      - meta-comments
+      - meta-categories
+      - meta-tags
+      - read-more

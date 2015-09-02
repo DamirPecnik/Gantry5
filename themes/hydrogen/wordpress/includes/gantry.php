@@ -1,4 +1,13 @@
 <?php
+/**
+ * @package   Gantry 5 Theme
+ * @author    RocketTheme http://www.rockettheme.com
+ * @copyright Copyright (C) 2007 - 2015 RocketTheme, LLC
+ * @license   GNU/GPLv2 and later
+ *
+ * http://www.gnu.org/licenses/gpl-2.0.html
+ */
+
 defined( 'ABSPATH' ) or die;
 
 use Gantry\Framework\Gantry;
@@ -6,7 +15,7 @@ use Gantry\Framework\Gantry;
 try {
     // Attempt to locate Gantry Framework if it hasn't already been loaded.
     if ( !class_exists( 'Gantry5\\Loader' ) ) {
-        throw new LogicException( 'Gantry Framework not found!' );
+        throw new LogicException( 'Gantry 5 Framework not found!' );
     }
 
     Gantry5\Loader::setup();
@@ -15,15 +24,13 @@ try {
     $gantry = Gantry::instance();
 
     // Initialize the template if not done already.
-    if (!isset($gantry[ 'theme.name' ]))
-    {
+    if ( !isset( $gantry[ 'theme.name' ] ) ) {
         $gantry[ 'theme.path' ] = get_stylesheet_directory();
         $gantry[ 'theme.name' ] = get_option( 'template' );
     }
 
     // Only a single template can be loaded at any time.
-    if (!isset($gantry[ 'theme' ]))
-    {
+    if ( !isset( $gantry[ 'theme' ] ) ) {
         include_once __DIR__ . '/theme.php';
     }
 
@@ -38,7 +45,10 @@ try {
     }
 
     add_filter( 'template_include', function() use ( $e ) {
-        echo 'Theme cannot be used. For more information, please login to administration.';
+        if( is_customize_preview() && !class_exists( 'Timber' ) ) {
+            _e( 'Timber library plugin not found. ', 'g5_hydrogen' );
+        }
+        _e( 'Theme cannot be used. For more information, please see the notice in administration.', 'g5_hydrogen' );
         die();
     });
 
@@ -51,14 +61,11 @@ if ( is_admin() ) {
         define( 'GANTRYADMIN_PATH', __DIR__ . '/admin' );
     }
 
-    add_action(
-        'init',
-        function () {
-            if ( defined('GANTRYADMIN_PATH') ) {
-                require_once GANTRYADMIN_PATH . '/init.php';
-            }
+    add_action( 'init', function () {
+        if( defined( 'GANTRYADMIN_PATH' ) ) {
+            require_once GANTRYADMIN_PATH . '/init.php';
         }
-    );
+    } );
 }
 
 return $gantry;

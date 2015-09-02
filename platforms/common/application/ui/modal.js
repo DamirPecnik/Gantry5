@@ -15,6 +15,7 @@ var prime    = require('prime'),
     forEach  = require('mout/array/forEach'),
     last     = require('mout/array/last'),
     merge    = require('mout/object/merge'),
+    trim     = require('mout/string/trim'),
 
     request  = require('agent');
 
@@ -112,7 +113,12 @@ var Modal = new prime({
         elements.container = zen('div')
             .addClass(options.baseClassNames.container)
             .addClass(options.className)
-            .style(options.css);
+            .style(options.css)
+            .attribute('tabindex', '0')
+            .attribute('role', 'dialog')
+            .attribute('aria-hidden', 'true')
+            .attribute('aria-labelledby', 'g-modal-labelledby')
+            .attribute('aria-describedby', 'g-modal-describedby');
 
         storage.set(elements.container, { dialog: options });
 
@@ -136,6 +142,8 @@ var Modal = new prime({
             .addClass(options.baseClassNames.content)
             .addClass(options.contentClassName)
             .style(options.contentCSS)
+            .attribute('aria-live', 'assertive')
+            .attribute('tabindex', '0')
             .html(options.content);
 
         storage.set(elements.content, { dialog: options });
@@ -156,7 +164,13 @@ var Modal = new prime({
             agent.method(options.method);
             agent.url(options.remote);
             if (options.data) { agent.data(options.data); }
+
             agent.send(bind(function(error, response) {
+                if (elements.container.hasClass(options.baseClassNames.closing)) {
+                    this.hideLoading();
+                    return;
+                }
+
                 elements.content.html(response.body.html || response.body);
 
                 if (!response.body.success) {
@@ -164,13 +178,19 @@ var Modal = new prime({
                 }
 
                 this.hideLoading();
-                if (options.remoteLoaded) {
+                if (options.remoteLoaded && !elements.container.hasClass(options.baseClassNames.closing)) {
                     options.remoteLoaded(response, options);
                 }
+
+                elements.container.attribute('aria-hidden', 'false');
+                setTimeout(function(){ elements.content[0].focus(); }, 0);
 
                 var selects = $('[data-selectize]');
                 if (selects) { selects.selectize(); }
             }, this));
+        } else {
+            elements.container.attribute('aria-hidden', 'false');
+            setTimeout(function(){ elements.content[0].focus(); }, 0);
         }
 
         // close button
@@ -178,6 +198,7 @@ var Modal = new prime({
             elements.closeButton = zen('div')
                 .addClass(options.baseClassNames.close)
                 .addClass(options.closeClassName)
+                .attribute('role', 'button').attribute('aria-label', 'Close')
                 .style(options.closeCSS);
 
             storage.set(elements.closeButton, { dialog: options });
@@ -271,12 +292,14 @@ var Modal = new prime({
                 }
             },
             close = bind(function() {
+                if (options.remoteLoaded) { options.remoteLoaded = function(){}; }
                 content.emit('dialogClose', options);
                 container.remove();
                 this.emit('dialogAfterClose', options);
                 if (options.afterClose) {
                     return options.afterClose(content, options);
                 }
+
             }, this);
 
         if (animationEndSupport) {
@@ -319,7 +342,7 @@ var Modal = new prime({
 
     showLoading: function() {
         this.hideLoading();
-        return $('body').appendChild(zen('div.g5-dialog-loading-spinner.' + this.options.className));
+        return $('#g5-container').appendChild(zen('div.g5-dialog-loading-spinner.' + this.options.className));
     },
 
     hideLoading: function() {
@@ -341,4 +364,6 @@ var Modal = new prime({
     }
 });
 
-module.exports = Modal;
+var modal = new Modal();
+
+module.exports = modal;

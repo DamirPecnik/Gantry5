@@ -14,8 +14,10 @@
 
 namespace Gantry\Framework\Base;
 
-use Gantry\Framework\Configurations;
+use Gantry\Framework\Outlines;
+use Gantry\Framework\Document as RealDocument;
 use Gantry\Framework\Platform;
+use Gantry\Framework\Request;
 use Gantry\Framework\Services\ConfigServiceProvider;
 use Gantry\Framework\Services\StreamsServiceProvider;
 use Gantry\Framework\Translator;
@@ -24,7 +26,7 @@ use RocketTheme\Toolbox\Event\Event;
 use RocketTheme\Toolbox\Event\EventDispatcher;
 use RocketTheme\Toolbox\ResourceLocator\UniformResourceLocator;
 
-class Gantry extends Container
+abstract class Gantry extends Container
 {
     /**
      * @var static
@@ -36,9 +38,42 @@ class Gantry extends Container
     {
         if (!self::$instance) {
             self::$instance = static::load();
+
+            if (!defined('GANTRY5_DEBUG')) {
+                define('GANTRY5_DEBUG', self::$instance->debug());
+            }
         }
 
         return self::$instance;
+    }
+
+    public static function restart()
+    {
+        self::$instance = null;
+
+        return static::instance();
+    }
+
+    /**
+     * Returns true if debug mode has been enabled.
+     *
+     * @return boolean
+     */
+    public abstract function debug();
+
+    /**
+     * Returns true if we are in administration.
+     *
+     * @return boolean
+     */
+    public abstract function admin();
+
+    /**
+     * @return string
+     */
+    public function siteUrl()
+    {
+        return RealDocument::siteUrl();
     }
 
     /**
@@ -47,7 +82,7 @@ class Gantry extends Container
      */
     public function styles($location = 'head')
     {
-        return Document::getStyles($location);
+        return RealDocument::getStyles($location);
     }
 
     /**
@@ -56,7 +91,7 @@ class Gantry extends Container
      */
     public function scripts($location = 'head')
     {
-        return Document::getScripts($location);
+        return RealDocument::getScripts($location);
     }
 
     /**
@@ -69,10 +104,14 @@ class Gantry extends Container
     {
         $value = $this[$id];
 
-        // Create a dummy service.
-        $this[$id] = function () use ($value) {
-            return $value;
-        };
+        try {
+            // Create a dummy service.
+            $this[$id] = function () use ($value) {
+                return $value;
+            };
+        } catch (\RuntimeException $e) {
+            // Services are already locked, so ignore the error.
+        }
 
         // Lock the service and return value.
         return $this[$id];
@@ -124,6 +163,10 @@ class Gantry extends Container
         $instance->register(new ConfigServiceProvider);
         $instance->register(new StreamsServiceProvider);
 
+        $instance['request'] = function ($c) {
+            return new Request;
+        };
+
         $instance['events'] = function ($c) {
             return new EventDispatcher;
         };
@@ -140,12 +183,74 @@ class Gantry extends Container
         $instance['configurations'] = $instance->factory(function ($c) {
             static $collection;
             if (!$collection) {
-                $collection = (new Configurations($c))->load();
+                $collection = (new Outlines($c))->load();
             }
 
             return $collection->copy();
         });
 
         return $instance;
+    }
+
+    /**
+     * Check if Gantry is compatible with your theme / extension.
+     *
+     * This function can be used to make sure that user has installed Gantry version
+     * that has been tested to work with your extension. All existing functions should
+     * be backwards compatible, but each release can add some new functionality, which
+     * you may want to use.
+     *
+     * <code>
+     * if ($gantry->isCompatible('5.0.1')) {
+     *      // You can do it in the new way.
+     * } else {
+     *     // Revert to the old way to display an error message.
+     * }
+     * </code>
+     *
+     * @param string $version Minimum required version.
+     *
+     * @return boolean Yes, if it is safe to use Gantry Framework.
+     */
+    public function isCompatible($version)
+    {
+        // If requested version is smaller than 5.0-rc, it's not compatible.
+        if (version_compare($version, '5.0-rc', '<')) {
+            return false;
+        }
+
+        // Development version support.
+        if ($version === '5.0' || static::isDev()) {
+            return true;
+        }
+
+        // Check if future version is needed.
+        if (version_compare($version, GANTRY5_VERSION, '>')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if Gantry is running from a Git repository or is a CI build.
+     *
+     * Developers tend to do their work directly in the Git repositories instead of
+     * creating and installing new builds after every change. This function can be
+     * used to check the condition and make sure we do not break users repository
+     * by replacing files during upgrade.
+     *
+     * @return boolean True if Git repository or CI build is detected.
+     */
+    public function isDev()
+    {
+        if ('@version@' == GANTRY5_VERSION) {
+            return true;
+        }
+        if ('dev-' === substr(GANTRY5_VERSION, 0, 4)) {
+            return true;
+        }
+
+        return false;
     }
 }

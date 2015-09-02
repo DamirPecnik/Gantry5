@@ -14,6 +14,7 @@
 
 namespace Gantry\Component\Config;
 
+use RocketTheme\Toolbox\ArrayTraits\Countable;
 use RocketTheme\Toolbox\ArrayTraits\Export;
 use RocketTheme\Toolbox\ArrayTraits\ExportInterface;
 use RocketTheme\Toolbox\ArrayTraits\Iterator;
@@ -25,9 +26,9 @@ use RocketTheme\Toolbox\Blueprints\Blueprints;
  *
  * @author RocketTheme
  */
-class Config implements \ArrayAccess, \Iterator, ExportInterface
+class Config implements \ArrayAccess, \Countable, \Iterator, ExportInterface
 {
-    use NestedArrayAccessWithGetters, Iterator, Export;
+    use NestedArrayAccessWithGetters, Countable, Iterator, Export;
 
     /**
      * @var array
@@ -78,6 +79,18 @@ class Config implements \ArrayAccess, \Iterator, ExportInterface
         $this->set($name, $value, $separator);
 
         return $this;
+    }
+
+    /**
+     * Get nested structure containing default values defined in the blueprints.
+     *
+     * Fields without default value are ignored in the list.
+
+     * @return array
+     */
+    public function getDefaults()
+    {
+        return $this->blueprints()->getDefaults();
     }
 
     /**

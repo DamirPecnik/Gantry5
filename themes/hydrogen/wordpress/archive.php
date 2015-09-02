@@ -1,40 +1,45 @@
 <?php
 /**
+ * @package   Gantry 5 Theme
+ * @author    RocketTheme http://www.rockettheme.com
+ * @copyright Copyright (C) 2007 - 2015 RocketTheme, LLC
+ * @license   GNU/GPLv2 and later
+ *
+ * http://www.gnu.org/licenses/gpl-2.0.html
+ */
+
+defined( 'ABSPATH' ) or die;
+
+/*
  * The template for displaying Archive pages.
  *
  * Used to display archive-type pages if nothing more specific matches a query.
  * For example, puts together date-based pages if no date.php file exists.
  *
  * Learn more: http://codex.wordpress.org/Template_Hierarchy
- *
- * Methods for TimberHelper can be found in the /functions sub-directory
- *
- * @package 	WordPress
- * @subpackage 	Timber
- * @since 		Timber 0.2
  */
 
-$templates = array( 'archive.twig', 'index.twig' );
+$context = Timber::get_context();
 
-$data = Timber::get_context();
+$templates = [ 'archive.html.twig', 'index.html.twig' ];
 
-$data['title'] = 'Archive';
-if ( is_day() ) {
-	$data['title'] = 'Archive: '.get_the_date( 'D M Y' );
-} else if ( is_month() ) {
-	$data['title'] = 'Archive: '.get_the_date( 'M Y' );
-} else if ( is_year() ) {
-	$data['title'] = 'Archive: '.get_the_date( 'Y' );
-} else if ( is_tag() ) {
-	$data['title'] = single_tag_title( '', false );
-} else if ( is_category() ) {
-	$data['title'] = single_cat_title( '', false );
-	array_unshift( $templates, 'archive-' . get_query_var( 'cat' ) . '.twig' );
-} else if ( is_post_type_archive() ) {
-	$data['title'] = post_type_archive_title( '', false );
-	array_unshift( $templates, 'archive-' . get_post_type() . '.twig' );
+$context[ 'title' ] = __( 'Archive', 'g5_hydrogen' );
+if( is_day() ) {
+    $context[ 'title' ] = __( 'Archive:', 'g5_hydrogen' ) . ' ' . get_the_date( 'j F Y' );
+} else if( is_month() ) {
+    $context[ 'title' ] = __( 'Archive:', 'g5_hydrogen' ) . ' ' . get_the_date( 'F Y' );
+} else if( is_year() ) {
+    $context[ 'title' ] = __( 'Archive:', 'g5_hydrogen' ) . ' ' . get_the_date( 'Y' );
+} else if( is_tag() ) {
+    $context[ 'title' ] = single_tag_title( '', false );
+} else if( is_category() ) {
+    $context[ 'title' ] = single_cat_title( '', false );
+    array_unshift( $templates, 'archive-' . get_query_var( 'cat' ) . '.html.twig' );
+} else if( is_post_type_archive() ) {
+    $context[ 'title' ] = post_type_archive_title( '', false );
+    array_unshift( $templates, 'archive-' . get_post_type() . '.html.twig' );
 }
 
-$data['posts'] = Timber::get_posts();
+$context[ 'posts' ] = Timber::get_posts();
 
-Timber::render( $templates, $data );
+Timber::render( $templates, $context );

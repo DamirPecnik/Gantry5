@@ -1,10 +1,17 @@
 <?php
 /**
- * The Template for displaying all single posts
+ * @package   Gantry 5 Theme
+ * @author    RocketTheme http://www.rockettheme.com
+ * @copyright Copyright (C) 2007 - 2015 RocketTheme, LLC
+ * @license   GNU/GPLv2 and later
  *
- *
- * @package  WordPress
- * @subpackage  Timber
+ * http://www.gnu.org/licenses/gpl-2.0.html
  */
 
-Timber::render( array( 'partials/sidebar.twig' ), $data );
+defined( 'ABSPATH' ) or die;
+
+/*
+ * The Template for displaying sidebar
+ */
+
+Timber::render( [ 'partials/sidebar.html.twig' ], isset( $context ) ? $context : [] );

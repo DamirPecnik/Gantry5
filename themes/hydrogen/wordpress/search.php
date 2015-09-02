@@ -1,19 +1,24 @@
 <?php
 /**
- * Search results page
+ * @package   Gantry 5 Theme
+ * @author    RocketTheme http://www.rockettheme.com
+ * @copyright Copyright (C) 2007 - 2015 RocketTheme, LLC
+ * @license   GNU/GPLv2 and later
  *
- * Methods for TimberHelper can be found in the /functions sub-directory
- *
- * @package 	WordPress
- * @subpackage 	Timber
- * @since 		Timber 0.1
+ * http://www.gnu.org/licenses/gpl-2.0.html
  */
 
+defined( 'ABSPATH' ) or die;
 
-$templates = array( 'search.twig', 'archive.twig', 'index.twig' );
+/*
+ * Search results page
+ */
+
 $context = Timber::get_context();
 
-$context['title'] = 'Search results for '. get_search_query();
-$context['posts'] = Timber::get_posts();
+$context[ 'title' ] = __( 'Search results for:', 'g5_hydrogen' ) . ' ' . get_search_query();
+$context[ 'posts' ] = Timber::get_posts();
+
+$templates = [ 'search.html.twig', 'archive.html.twig', 'index.html.twig' ];
 
 Timber::render( $templates, $context );

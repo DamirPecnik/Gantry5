@@ -41,6 +41,21 @@ class Menu extends AbstractMenu
         $this->active  = $this->menu->getActive();
     }
 
+    public function init(&$params)
+    {
+        parent::init($params);
+
+        if (!empty($params['admin'])) {
+            /** @var \JTableMenuType $table */
+            $menuType = \JTable::getInstance('MenuType');
+            $menuType->load(['menutype' => $params['menu']]);
+
+            $config = $this->config();
+            $config->set('settings.title', $menuType->title);
+            $config->set('settings.description', $menuType->description);
+        }
+    }
+
     /**
      * Return list of menus.
      *
@@ -67,6 +82,36 @@ class Menu extends AbstractMenu
     public function getDefaultMenuName()
     {
         return $this->default->menutype;
+    }
+
+    /**
+     * Returns true if the platform implements a Default menu.
+     *
+     * @return boolean
+     */
+    public function hasDefaultMenu()
+    {
+        return true;
+    }
+
+    /**
+     * Return active menu.
+     *
+     * @return string
+     */
+    public function getActiveMenuName()
+    {
+        return $this->active ? $this->active->menutype : null;
+    }
+
+    /**
+     * Returns true if the platform implements an Active menu.
+     *
+     * @return boolean
+     */
+    public function hasActiveMenu()
+    {
+        return true;
     }
 
     public function isActive($item)
@@ -102,8 +147,19 @@ class Menu extends AbstractMenu
      */
     protected function getItemsFromPlatform($params)
     {
-        // Items are already filtered by ViewLevels and user language.
-        return $this->menu->getItems('menutype', $params['menu'] ?: $this->default->menutype);
+        $attributes = ['menutype'];
+        $values = [$params['menu']];
+
+        // Items are already filtered by access and language, in admin we need to work around that.
+        if (\JFactory::getApplication()->isAdmin()) {
+            $attributes[] = 'access';
+            $values[] = null;
+
+            $attributes[] = 'language';
+            $values[] = null;
+        }
+
+        return $this->menu->getItems($attributes, $values);
     }
 
     /**
@@ -136,7 +192,7 @@ class Menu extends AbstractMenu
     /**
      * Get a list of the menu items.
      *
-     * Logic has been mostly copied from Joomla 3.4 mod_menu/helper.php (joomla-cms/staging, 2014-11-12).
+     * Logic was originally copied from Joomla 3.4 mod_menu/helper.php (joomla-cms/staging, 2014-11-12).
      * We should keep the contents of the function similar to Joomla in order to review it against any changes.
      *
      * @param  array  $params
@@ -167,7 +223,8 @@ class Menu extends AbstractMenu
         if (1) {
             $path    = $this->base->tree;
             $start   = $params['startLevel'];
-            $end     = $params['endLevel'];
+            $max     = $params['maxLevels'];
+            $end     = $max ? $start + $max - 1 : 0;
 
             $menuItems = $this->getItemsFromPlatform($params);
 
@@ -185,7 +242,7 @@ class Menu extends AbstractMenu
                     continue;
                 }
 
-                // These params always come from Joomla.
+                // These params always come from Joomla and cannot be overridden.
                 $itemParams = [
                     'id' => $menuItem->id,
                     'type' => $menuItem->type,
@@ -204,7 +261,7 @@ class Menu extends AbstractMenu
                 }
 
                 // Get default target from Joomla.
-                switch ($menuItem->params->get('browserNav', 0))
+                switch ($menuItem->browserNav)
                 {
                     default:
                     case 0:
@@ -222,6 +279,7 @@ class Menu extends AbstractMenu
                 $itemParams += [
                     'title' => $menuItem->title,
                     'subtitle' => $menuItem->params->get('menu-anchor_title', ''),
+                    'anchor_class' => $menuItem->params->get('menu-anchor_css', ''),
                     'image' => $menuItem->params->get('menu_image', ''),
                     'icon_only' => !$menuItem->params->get('menu_text', 1),
                     'target' => $target
@@ -277,7 +335,8 @@ class Menu extends AbstractMenu
 
                 if ($item->type == 'url') {
                     // Moved from modules/mod_menu/tmpl/default_url.php, not sure why Joomla had application logic in there.
-                    $item->url(\JFilterOutput::ampReplace(htmlspecialchars($item->link)));
+                    // Keep compatibility to Joomla menu module, but we need non-encoded version of the url.
+                    $item->url(htmlspecialchars_decode(\JFilterOutput::ampReplace(htmlspecialchars($item->link))));
                 }
             }
             // FIXME: need to create collection class to gather the sibling data, otherwise caching cannot work.

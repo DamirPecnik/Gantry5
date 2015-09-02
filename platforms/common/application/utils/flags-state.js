@@ -6,6 +6,7 @@ var prime         = require('prime'),
     modal         = require('../ui').modal,
 
     getAjaxURL    = require('./get-ajax-url').global,
+    parseAjaxURI  = require('./get-ajax-url').parse,
     getAjaxSuffix = require('./get-ajax-suffix');
 
 var FlagsState = new prime({
@@ -36,19 +37,33 @@ var FlagsState = new prime({
     warning: function(options){
         var callback = options.callback || function() {},
             afterclose = options.afterclose || function() {},
-            warningURL = options.url || getAjaxURL('unsaved') + getAjaxSuffix();
+            warningURL = parseAjaxURI(options.url || getAjaxURL('unsaved') + getAjaxSuffix());
 
-        modal.open({
-            content: 'Loading...',
-            remote: warningURL,
-            remoteLoaded: function(response, modal) {
-                var content = modal.elements.content;
-                if (!callback) { return; }
+        if (!options.url && !options.message) { options.url = true; }
+        if (options.url) {
+            modal.open({
+                content: 'Loading...',
+                remote: warningURL,
+                remoteLoaded: function(response, modal) {
+                    var content = modal.elements.content;
+                    if (!callback) { return; }
 
-                callback.call(this, response, content, modal);
-            },
-            afterClose: afterclose || function() {}
-        });
+                    callback.call(this, response, content, modal);
+                },
+                afterClose: afterclose || function() {}
+            });
+        } else {
+            modal.open({
+                content: options.message,
+                afterOpen: function(response, modal) {
+                    var content = modal.elements.content;
+                    if (!callback) { return; }
+
+                    callback.call(this, response, content, modal);
+                },
+                afterClose: afterclose || function() {}
+            });
+        }
     }
 
 });

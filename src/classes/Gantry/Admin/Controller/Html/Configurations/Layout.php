@@ -19,6 +19,7 @@ use Gantry\Component\Config\Config;
 use Gantry\Component\Controller\HtmlController;
 use Gantry\Component\File\CompiledYamlFile;
 use Gantry\Component\Layout\Layout as LayoutObject;
+use Gantry\Component\Layout\LayoutReader;
 use Gantry\Component\Request\Request;
 use Gantry\Component\Response\JsonResponse;
 use RocketTheme\Toolbox\Blueprints\Blueprints;
@@ -43,6 +44,10 @@ class Layout extends HtmlController
             '/'                     => 'save',
             '/*'                    => 'undefined',
             '/*/*'                  => 'particle',
+            '/switch'               => 'undefined',
+            '/switch/*'             => 'switchLayout',
+            '/preset'               => 'undefined',
+            '/preset/*'             => 'preset',
             '/particles'            => 'undefined',
             '/particles/*'          => 'undefined',
             '/particles/*/validate' => 'validate'
@@ -121,24 +126,22 @@ class Layout extends HtmlController
 
     public function save()
     {
-        if (!isset($_POST['layout'])) {
+        $layout = $this->request->post->getJsonArray('layout');
+        if (!isset($layout)) {
             throw new \RuntimeException('Error while saving layout: Structure missing', 400);
         }
 
         $configuration = $this->params['configuration'];
-        $layout = json_decode($_POST['layout'], true);
-        $preset = isset($_POST['preset']) ? json_decode($_POST['preset'], true) : '';
+        $preset = $this->request->post->getJsonArray('preset');
 
-        /** @var UniformResourceLocator $locator */
-        $locator = $this->container['locator'];
+        // Create layout from the data.
+        $layout = new LayoutObject(
+            $configuration,
+            LayoutReader::data(['preset' => $preset, 'children' => $layout])
+        );
 
-        // Save layout into custom directory for the current theme.
-        $save_dir = $locator->findResource("gantry-config://{$configuration}", true, true);
-        $filename = "{$save_dir}/layout.yaml";
-
-        $file = CompiledYamlFile::instance($filename);
-        $file->settings(['inline' => 20]);
-        $file->save(['preset' => $preset, 'children' => $layout]);
+        // Save layout and its index.
+        $layout->save()->saveIndex();
 
         // Fire save event.
         $event = new Event;
@@ -158,32 +161,40 @@ class Layout extends HtmlController
         }
 
         $item = $layout->find($id);
-        $item->type    = isset($_POST['type']) ? $_POST['type'] : $type;
-        $item->subtype = isset($_POST['subtype']) ? $_POST['subtype'] : null;
-        $item->title   = isset($_POST['title']) ? $_POST['title'] : 'Untitled';
+        $item->type    = $this->request->post['type'] ?: $type;
+        $item->subtype = $this->request->post['subtype'] ?: false;
+        $item->title   = $this->request->post['title'] ?: ucfirst($type);
         if (!isset($item->attributes)) {
             $item->attributes = new \stdClass;
         }
-        if (isset($_POST['block'])) {
-            $item->block = (object) $_POST['block'];
+
+        $block = $this->request->post->getArray('block');
+        if (!empty($block)) {
+            $item->block = (object) $block;
         }
 
-        $name = isset($item->subtype) ? $item->subtype : $type;
+        $name = isset($item->subtype) && $item->subtype ? $item->subtype : $type;
 
-        $attributes = isset($_POST['options']) && is_array($_POST['options']) ? $_POST['options'] : [];
+        $attributes = $this->request->post->getArray('options');
 
-        if ($type == 'section' || $type == 'grid' || $type == 'offcanvas') {
+        if ($type == 'section' || $type == 'container' || $type == 'grid' || $type == 'offcanvas') {
+            $particle = false;
+            $hasBlock = $type == 'section' && !empty($block);
             $prefix = "particles.{$type}";
             $defaults = [];
             $attributes += (array) $item->attributes + $defaults;
-            $extra = null;
             $blueprints = new BlueprintsForm(CompiledYamlFile::instance("gantry-admin://blueprints/layout/{$type}.yaml")->content());
         } else {
+            $particle = true;
+            $hasBlock = true;
             $prefix = "particles.{$name}";
             $defaults = (array) $this->container['config']->get($prefix);
             $attributes += $defaults;
-            $extra = new BlueprintsForm(CompiledYamlFile::instance("gantry-admin://blueprints/layout/block.yaml")->content());
             $blueprints = new BlueprintsForm($this->container['particles']->get($name));
+        }
+
+        if ($hasBlock) {
+            $extra = new BlueprintsForm(CompiledYamlFile::instance("gantry-admin://blueprints/layout/block.yaml")->content());
         }
 
         // TODO: Use blueprints to merge configuration.
@@ -191,7 +202,7 @@ class Layout extends HtmlController
 
         $this->params['id'] = $name;
         $this->params += [
-            'extra'         => $extra,
+            'extra'         => isset($extra) ? $extra : null,
             'item'          => $item,
             'data'          => ['particles' => [$name => $item->attributes]],
             'defaults'      => ['particles' => [$name => $defaults]],
@@ -203,12 +214,13 @@ class Layout extends HtmlController
             'skip'          => ['enabled']
         ];
 
-        if ($extra) {
+        if ($particle) {
             $typeLayout = $type == 'atom' ? $type : 'particle';
             $result = $this->container['admin.theme']->render('@gantry-admin/pages/configurations/layouts/' . $typeLayout . '.html.twig',
                 $this->params);
         } else {
-            $result = $this->container['admin.theme']->render('@gantry-admin/pages/configurations/layouts/section.html.twig',
+            $typeLayout = $type == 'container' ? 'container' : 'section';
+            $result = $this->container['admin.theme']->render('@gantry-admin/pages/configurations/layouts/' . $typeLayout . '.html.twig',
                 $this->params);
         }
 
@@ -236,10 +248,18 @@ class Layout extends HtmlController
             $layout = $this->getLayout('default');
         }
 
+        $input = $this->request->post->getJson('layout');
+        $deleted = isset($input) ? $layout->clearSections()->copySections($input): [];
+        $message = $deleted
+            ? $this->container['admin.theme']->render('@gantry-admin/ajax/particles-loss.html.twig', ['particles' => $deleted])
+            : null;
+
         return new JsonResponse([
             'title' => ucwords(trim(str_replace('_', ' ', $layout->preset['name']))),
             'preset' => json_encode($layout->preset),
-            'data' => $layout->toArray()
+            'data' => $layout->toJson(),
+            'deleted' => $deleted,
+            'message' => $message
     ]   );
     }
 
@@ -255,14 +275,20 @@ class Layout extends HtmlController
             throw new \RuntimeException('Preset not found', 404);
         }
 
-        $preset = json_encode($layout['preset']);
-        unset($layout['preset']);
-        $data = $layout;
+        $layout = new LayoutObject($id, $layout);
+
+        $input = $this->request->post->getJson('layout');
+        $deleted = isset($input) ? $layout->clearSections()->copySections($input): [];
+        $message = $deleted
+            ? $this->container['admin.theme']->render('@gantry-admin/ajax/particles-loss.html.twig', ['particles' => $deleted])
+            : null;
 
         return new JsonResponse([
             'title' => ucwords(trim(str_replace('_', ' ', $id))),
-            'preset' => $preset,
-            'data' => $data
+            'preset' => json_encode($layout->preset),
+            'data' => $layout->toJson(),
+            'deleted' => $deleted,
+            'message' => $message
         ]);
     }
 
@@ -277,7 +303,7 @@ class Layout extends HtmlController
         $validator = new Blueprints();
 
         $name = $particle;
-        if ($particle == 'section' || $particle == 'grid' || $particle == 'offcanvas') {
+        if ($particle == 'section' || $particle == 'container' || $particle == 'grid' || $particle == 'offcanvas') {
             $type = $particle;
             $particle = null;
             $validator->embed('options', CompiledYamlFile::instance("gantry-admin://blueprints/layout/{$type}.yaml")->content());
@@ -298,11 +324,8 @@ class Layout extends HtmlController
             }
         );
 
-        /** @var Request $request */
-        $request = $this->container['request'];
-
         // Join POST data.
-        $data->join('options', $request->getArray("particles." . $name));
+        $data->join('options', $this->request->post->getArray("particles." . $name));
         if ($particle) {
             $data->set('options.enabled', (int) $data->get('options.enabled', 1));
         }
@@ -312,22 +335,29 @@ class Layout extends HtmlController
                 $data->set('subtype', $particle);
             }
 
-            $data->join('title', isset($_POST['title']) ? $_POST['title'] : ucfirst($particle));
-            if (isset($_POST['block'])) {
-                // TODO: remove empty items in some other way:
-                $block = $request->getArray('block');
-                foreach ($block as $key => $param) {
-                    if ($param === '') {
-                        unset($block[$key]);
-                        continue;
-                    }
-                    if ($key == 'size') {
-                        $block[$key] = round($param, 4);
-                    }
-                }
+            $data->join('title', $this->request->post['title'] ?: ucfirst($particle));
+        }
 
-                $data->join('block', $block);
+        $block = $this->request->post->getArray('block');
+        if ($block) {
+            // TODO: remove empty items in some other way:
+            foreach ($block as $key => $param) {
+                if ($param === '') {
+                    unset($block[$key]);
+                    continue;
+                }
+                if ($key == 'size') {
+                    $param = round($param, 4);
+                    if ($param < 5) {
+                        $param = 5;
+                    } elseif ($param > 100) {
+                        $param = 100;
+                    }
+                    $block[$key] = $param;
+                }
             }
+
+            $data->join('block', $block);
         }
 
         // TODO: validate

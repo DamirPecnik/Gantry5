@@ -80,6 +80,7 @@ class ThemeList
             ->from('#__template_styles AS s')
             ->where('s.client_id = 0')
             ->where('e.enabled = 1')
+            ->where('e.state = 0')
             ->leftJoin('#__extensions AS e ON e.element=s.template AND e.type='
             . $db->quote('template') . ' AND e.client_id=s.client_id');
 
@@ -100,8 +101,10 @@ class ThemeList
             {
                 $details = new ThemeDetails($template->name);
 
-                if (!$locator->schemeExists('gantry-theme-' . $template->name)) {
-                    $locator->addPath('gantry-themes-' . $template->name, '', $details->getPaths());
+                // Stream needs to be valid URL.
+                $streamName = 'gantry-themes-' . preg_replace('|[^a-z\d+.-]|ui', '-', $template->name);
+                if (!$locator->schemeExists($streamName)) {
+                    $locator->addPath($streamName, '', $details->getPaths());
                 }
 
                 $params = new \JRegistry($template->params);

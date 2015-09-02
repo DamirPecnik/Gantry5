@@ -58,7 +58,7 @@ class Theme extends BaseTheme
             /** @var UniformResourceLocator $locator */
             $locator = $c['locator'];
 
-            $cache = $locator->findResource('gantry-cache://compiled/config', true, true);
+            $cache = $locator->findResource('gantry-cache://theme/compiled/config', true, true);
             $paths = $locator->findResources('gantry-config://default');
 
             $files = (new ConfigFileFinder)->locateFiles($paths);
@@ -67,7 +67,7 @@ class Theme extends BaseTheme
                 return $c['blueprints'];
             });
 
-            return $config->load();
+            return $config->load(true);
         };
 
         parent::__construct($path, $name);
@@ -75,14 +75,28 @@ class Theme extends BaseTheme
         $this->boot();
     }
 
-
     protected function boot()
     {
         $gantry = \Gantry\Framework\Gantry::instance();
 
-        /** @var Streams $streams */
-        $streams = $gantry['streams'];
-        $streams->register();
+        /** @var UniformResourceLocator $locator */
+        $locator = $gantry['locator'];
+
+        /** @var Platform $patform */
+        $patform = $gantry['platform'];
+
+        // Add admin paths.
+        foreach ($patform->get('streams.gantry-admin.prefixes') as $prefix => $paths) {
+            $locator->addPath('gantry-admin', $prefix, $paths);
+        }
+    }
+
+    /**
+     * Initialize theme.
+     */
+    public function init()
+    {
+        return;
     }
 
     public function add_to_context(array $context)
@@ -109,29 +123,39 @@ class Theme extends BaseTheme
         return $twig;
     }
 
+
+    public function renderer()
+    {
+        if (!$this->renderer) {
+            $gantry = \Gantry\Framework\Gantry::instance();
+
+            /** @var UniformResourceLocator $locator */
+            $locator = $gantry['locator'];
+
+            $loader = new \Twig_Loader_Filesystem($locator->findResources('gantry-admin://templates'));
+
+            $params = array(
+                'cache' => $locator->findResource('gantry-cache://admin/twig', true, true),
+                'debug' => true,
+                'auto_reload' => true,
+                'autoescape' => 'html'
+            );
+
+            $twig = new \Twig_Environment($loader, $params);
+
+            $this->add_to_twig($twig);
+
+            $this->renderer = $twig;
+        }
+
+        return $this->renderer;
+    }
+
     public function render($file, array $context = array())
     {
-        $gantry = \Gantry\Framework\Gantry::instance();
-
-        /** @var UniformResourceLocator $locator */
-        $locator = $gantry['locator'];
-
-        $loader = new \Twig_Loader_Filesystem($locator->findResources('gantry-admin://templates'));
-
-        $params = array(
-            'cache' => $locator->findResource('gantry-cache://twig', true, true),
-            'debug' => true,
-            'auto_reload' => true,
-            'autoescape' => 'html'
-        );
-
-        $twig = new \Twig_Environment($loader, $params);
-
-        $this->add_to_twig($twig);
-
         // Include Gantry specific things to the context.
         $context = $this->add_to_context($context);
 
-        return $twig->render($file, $context);
+        return $this->renderer()->render($file, $context);
     }
 }

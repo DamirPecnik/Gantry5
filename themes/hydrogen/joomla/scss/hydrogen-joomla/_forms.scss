@@ -49,3 +49,11 @@ input[type="color"],
 		}
 	}
 }
+
+// Mailto and Print Windows
+.view-mailto, .body-only {
+    #g-page-surround {
+        box-shadow: none;
+    }
+}
+

@@ -18,6 +18,7 @@ use Gantry\Component\Gantry\GantryTrait;
 use Gantry\Component\Translator\TranslatorInterface;
 use Gantry\Framework\Document;
 use Gantry\Framework\Gantry;
+use Gantry\Framework\Request;
 use RocketTheme\Toolbox\ArrayTraits\NestedArrayAccess;
 use RocketTheme\Toolbox\ResourceLocator\UniformResourceLocator;
 
@@ -32,7 +33,7 @@ class TwigExtension extends \Twig_Extension
      */
     public function getName()
     {
-        return 'UrlExtension';
+        return 'GantryTwig';
     }
 
     /**
@@ -42,14 +43,16 @@ class TwigExtension extends \Twig_Extension
      */
     public function getFilters()
     {
-        return array(
+        return [
             new \Twig_SimpleFilter('fieldName', [$this, 'fieldNameFilter']),
             new \Twig_SimpleFilter('html', [$this, 'htmlFilter']),
             new \Twig_SimpleFilter('url', [$this, 'urlFunc']),
             new \Twig_SimpleFilter('trans', [$this, 'transFilter']),
             new \Twig_SimpleFilter('repeat', [$this, 'repeatFilter']),
+            new \Twig_SimpleFilter('json_decode', [$this, 'jsonDecodeFilter']),
+            new \Twig_SimpleFilter('values', [$this, 'valuesFilter']),
             new \Twig_SimpleFilter('base64', 'base64_encode'),
-        );
+        ];
     }
 
     /**
@@ -59,12 +62,15 @@ class TwigExtension extends \Twig_Extension
      */
     public function getFunctions()
     {
-        return array(
+        return [
             new \Twig_SimpleFunction('nested', [$this, 'nestedFunc']),
             new \Twig_SimpleFunction('url', [$this, 'urlFunc']),
             new \Twig_SimpleFunction('parse_assets', [$this, 'parseAssetsFunc']),
-            new \Twig_SimpleFunction('colorContrast', [$this, 'colorContrastFunc'])
-        );
+            new \Twig_SimpleFunction('colorContrast', [$this, 'colorContrastFunc']),
+            new \Twig_SimpleFunction('get_cookie', [$this, 'getCookie']),
+            new \Twig_SimpleFunction('preg_match', [$this, 'pregMatch']),
+            new \Twig_SimpleFunction('json_decode', [$this, 'jsonDecodeFilter']),
+        ];
     }
 
     /**
@@ -72,7 +78,12 @@ class TwigExtension extends \Twig_Extension
      */
     public function getTokenParsers()
     {
-        return array(new TokenParserTry());
+        return [
+            new TokenParserAssets(),
+            new TokenParserScripts(),
+            new TokenParserStyles(),
+            new TokenParserTry(),
+        ];
     }
 
     /**
@@ -144,6 +155,32 @@ class TwigExtension extends \Twig_Extension
         return str_repeat($str, (int) $count);
     }
 
+
+    /**
+     * Decodes string from JSON.
+     *
+     * @param  string  $str
+     * @param  bool  $assoc
+     * @param int $depth
+     * @param int $options
+     * @return array
+     */
+    public function jsonDecodeFilter($str, $assoc = false, $depth = 512, $options = 0)
+    {
+        return json_decode($str, $assoc, $depth, $options);
+    }
+
+    /**
+     * Reindexes values in array.
+     *
+     * @param array $array
+     * @return array
+     */
+    public function valuesFilter(array $array)
+    {
+        return array_values($array);
+    }
+
     /**
      * Get value by using dot notation for nested arrays/objects.
      *
@@ -190,6 +227,36 @@ class TwigExtension extends \Twig_Extension
     }
 
     /**
+     * @param \libXMLError $error
+     * @param string $input
+     * @throws \RuntimeException
+     */
+    protected function dealXmlError(\libXMLError $error, $input)
+    {
+        switch ($error->level) {
+            case LIBXML_ERR_WARNING:
+                $level = 1;
+                $message = "DOM Warning {$error->code}: ";
+                break;
+            case LIBXML_ERR_ERROR:
+                $level = 2;
+                $message = "DOM Error {$error->code}: ";
+                break;
+            case LIBXML_ERR_FATAL:
+                $level = 3;
+                $message = "Fatal DOM Error {$error->code}: ";
+                break;
+        }
+        $message .= "{$error->message} while parsing:\n{$input}\n";
+
+        if ($level <= 2 && !Gantry::instance()->debug()) {
+            return;
+        }
+
+        throw new \RuntimeException($message, 500);
+    }
+
+    /**
      * Move supported document head elements into platform document object, return all
      * unsupported tags in a string.
      *
@@ -200,16 +267,36 @@ class TwigExtension extends \Twig_Extension
      */
     public function parseAssetsFunc($input, $location = 'head', $priority = 0)
     {
+        if ($location == 'head') {
+            $scope = 'head';
+        } else {
+            $scope = 'body';
+        }
+        $html = "<html><{$scope}>{$input}</{$scope}></html>";
+
+        $internal = libxml_use_internal_errors(true);
+
         $doc = new \DOMDocument();
-        $doc->loadHTML('<html><head>' . $input . '</head><body></body></html>');
+        $doc->loadHTML($html);
+        foreach (libxml_get_errors() as $error) {
+            $this->dealXmlError($error, $html);
+        }
+
+        libxml_clear_errors();
+
+        libxml_use_internal_errors($internal);
+
         $raw = [];
         /** @var \DomElement $element */
-        foreach ($doc->getElementsByTagName('head')->item(0)->childNodes as $element) {
+        foreach ($doc->getElementsByTagName($scope)->item(0)->childNodes as $element) {
+            if (empty($element->tagName)) {
+                continue;
+            }
             $result = ['tag' => $element->tagName, 'content' => $element->textContent];
             foreach ($element->attributes as $attribute) {
                 $result[$attribute->name] = $attribute->value;
             }
-            $success = Document::addHeaderTag($result, $location, $priority);
+            $success = Document::addHeaderTag($result, $location, (int) $priority);
             if (!$success) {
                 $raw[] = $doc->saveHTML($element);
             }
@@ -248,5 +335,25 @@ class TwigExtension extends \Twig_Extension
         $contrast = $yiq || ($opacity == 0 || (float) $opacity < 0.35);
 
         return $contrast;
+    }
+
+    public function getCookie($name)
+    {
+        $gantry = Gantry::instance();
+
+        /** @var Request $request */
+        $request = $gantry['request'];
+
+        return $request->cookie[$name];
+    }
+
+    public function pregMatch($pattern, $subject, &$matches = []) {
+        $preg_match = preg_match($pattern, $subject, $matches);
+
+        if(isset($matches) && !empty($matches)) {
+            return $matches;
+        } else {
+            return false;
+        }
     }
 }

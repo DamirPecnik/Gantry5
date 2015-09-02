@@ -18,7 +18,7 @@ var originals,
             keys.forEach(function(key) {
                 field = $('[name="' + key + '"]');
                 if (field) {
-                    map.set(key, field.value().toLowerCase());
+                    map.set(key, field.value());
                 }
             });
 
@@ -30,6 +30,8 @@ var originals,
 
         fields.forEach(function(field) {
             field = $(field);
+
+            if (field.type() == 'checkbox' && !field.value().length) { field.value('0'); }
             map.set(field.attribute('name'), field.value());
         }, this);
 
@@ -39,7 +41,7 @@ var originals,
         var map = new storage();
 
         forEach(data, function(value, key) {
-            map.set(key, value.toLowerCase());
+            map.set(key, value);
         });
 
         return map;
@@ -63,6 +65,10 @@ ready(function() {
             isOverride = parent ? parent.find('.settings-param-toggle') : false;
 
         if (!parent) { return; }
+
+        if (element.type() == 'checkbox') {
+            element.value(Number(element.checked()).toString());
+        }
 
         if (!target || !originals || originals.get(element.attribute('name')) == null) { return; }
         if (originals.get(element.attribute('name')) !== element.value()) {
@@ -95,7 +101,7 @@ ready(function() {
         if (!field || !reset) { return true; }
 
         var value = field.value();
-        if (!value) { reset.style('display', 'none'); }
+        if (!value || field.disabled()) { reset.style('display', 'none'); }
         else { reset.removeAttribute('style'); }
     };
 
@@ -127,13 +133,15 @@ ready(function() {
     body.delegate('change', '.settings-block input[name][type="hidden"], .settings-block input[name][type="checkbox"], .settings-block select[name]', compare.single);
 
     body.delegate('input', '.g-urltemplate', function(event, element) {
-        var previous = element.parent('.settings-param').previousSibling();
+        var previous = element.parent('.settings-param').siblings();
         if (!previous) { return; }
 
         previous = previous.find('[data-g-urltemplate]');
 
-        var template = previous.data('g-urltemplate');
-        previous.attribute('href', template.replace(/#ID#/g, element.value()));
+        if (previous) {
+            var template = previous.data('g-urltemplate');
+            previous.attribute('href', template.replace(/#ID#/g, element.value()));
+        }
     });
 
     // fields resets
@@ -143,7 +151,7 @@ ready(function() {
         if (!parent) { return; }
 
         field = parent.find('[name]');
-        if (field) {
+        if (field && !field.disabled()) {
             var selectize = field.selectizeInstance;
             if (selectize) { selectize.setValue(''); }
             else { field.value(''); }

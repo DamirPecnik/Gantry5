@@ -38,9 +38,15 @@ form:
           type: input.text
           label: Link
 
+        .hash:
+          type: input.text
+          label: Append Hash
+          description: "If you'd like to append an hash to the end of the URL (ie, #to-bottom)"
+
         .title:
           type: input.text
           label: Menu Title
+          required: true
 
         .target:
           type: select.selectize
@@ -53,11 +59,26 @@ form:
         .dropdown:
           type: select.selectize
           label: Dropdown Style
-          placeholder: 'Select...'
-          default: standard
+          default: ''
+          selectize:
+            allowEmptyOption: true
           options:
-            standard: Standard
-            fullwidth: Full Width
+            '': - Use Default -
+            standard: Simple
+            fullwidth: Extended
+
+        .dropdown_hide:
+          type: input.checkbox
+          label: Disable Dropdowns
+          description: If checked and the item has dropdowns, they won't be rendered.
+          default: ''
+
+        .width:
+          type: input.text
+          label: Dropdown Width
+          description: Set the width of this parent's dropdowns in rem, em, px units or auto.
+          default: "auto"
+          pattern: '((\d+(\.\d+){0,1}(rem|em|px))|auto)'
 
         .class:
           type: input.selectize
@@ -67,6 +88,15 @@ form:
         .icon:
           type: input.icon
           label: Icon
+
+        .image:
+          type: input.imagepicker
+          label: Image
+
+        .icon_only:
+          type: input.checkbox
+          label: Icon Only
+          description: Display only icon or image. Hides title and subtitle.
 
         .subtitle:
           type: input.text

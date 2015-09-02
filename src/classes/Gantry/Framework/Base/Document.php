@@ -21,6 +21,8 @@ class Document
 {
     use GantryTrait;
 
+    public static $timestamp_age = 604800;
+
     protected static $scripts = [];
     protected static $styles = [];
 
@@ -166,84 +168,170 @@ class Document
         return $html;
     }
 
+    public static function registerAssets()
+    {
+    }
+
+    public static function siteUrl()
+    {
+        return static::rootUri();
+    }
+
+
     public static function rootUri()
     {
         return '';
     }
 
+    public static function domain($addDomain = false)
+    {
+        return '';
+    }
+
+
     /**
      * Return URL to the resource.
      *
-     * @example {{ url('theme://images/logo.png')|default('http://www.placehold.it/150x100/f4f4f4') }}
+     * @example {{ url('gantry-theme://images/logo.png')|default('http://www.placehold.it/150x100/f4f4f4') }}
      *
-     * @param  string $url    Resource to be located.
-     * @param  bool $domain     True to include domain name.
-     * @param  bool $timestamp  True to append timestamp for the existing files.
-     * @return string|null      Returns url to the resource or null if resource was not found.
+     * @param  string $url         Resource to be located.
+     * @param  bool $domain        True to include domain name.
+     * @param  int $timestamp_age  Append timestamp to files that are less than x seconds old. Defaults to a week.
+     *                             Use value <= 0 to disable the feature.
+     * @return string|null         Returns url to the resource or null if resource was not found.
      */
-    public static function url($url, $domain = false, $timestamp = true)
+    public static function url($url, $domain = false, $timestamp_age = null)
     {
-        if (!$url) {
+        if (!is_string($url) || $url === '') {
+            // Return null on invalid input.
             return null;
         }
 
-        if ($url[0] == '/') {
-            // Absolute path in our server.
-            // TODO: add support to include domain..
+        if ($url[0] === '#') {
+            // Handle fragment only.
             return $url;
-
         }
 
-        // Remove fragment for stream / file lookup.
-        $parts = explode('#', $url, 2);
-        $uri = array_shift($parts);
-        $fragment = array_shift($parts);
+        $parts = self::parseUrl($url);
 
-        // Remove parameters for stream / file lookup.
-        $parts = explode('?', $uri, 2);
-        $uri = array_shift($parts);
-        $params = array_shift($parts);
+        if (!is_array($parts)) {
+            // URL could not be parsed, return null.
+            return null;
+        }
 
-        if (strpos($uri, '://') !== false) {
-            // Resolve stream to a relative path.
+        // Make sure we always have scheme, host, port and path.
+        $scheme = isset($parts['scheme']) ? $parts['scheme'] : '';
+        $host = isset($parts['host']) ? $parts['host'] : '';
+        $port = isset($parts['port']) ? $parts['port'] : '';
+        $path = isset($parts['path']) ? $parts['path'] : '';
+
+        if ($scheme && !$port) {
+            // If URL has a scheme, we need to check if it's one of Gantry streams.
             $gantry = static::gantry();
 
             /** @var UniformResourceLocator $locator */
             $locator = $gantry['locator'];
 
-            try {
-                // Attempt to find our resource.
-                $uri = $locator->findResource($uri, false);
-                if (!$uri) {
-                    // Resource not found.
-                    return null;
-                }
-            } catch (\Exception $e) {
-                // Scheme did not exist; assume that we had valid scheme (like http) so no modification is needed.
+            if (!$locator->schemeExists($scheme)) {
+                // If scheme does not exists as a stream, assume it's external.
                 return $url;
             }
-        }
 
-        if ($timestamp && $uri) {
-            // We want to add timestamp to the URL: do it only for local files.
-            $realPath = realpath(GANTRY5_ROOT . '/' . $uri);
-            if ($realPath) {
-                $params = $params ? "{$params}&" : '';
-                $params .= sprintf('%x', filemtime($realPath));
+            // Attempt to find the resource (because of parse_url() we need to put host back to path).
+            $path = $locator->findResource("{$scheme}://{$host}{$path}", false);
+
+            if ($path === false) {
+                return null;
             }
+
+        } elseif ($host || $port) {
+            // If URL doesn't have scheme but has host or port, it is external.
+            return $url;
         }
 
-        // Add parameters back.
-        if ($params) {
-            $uri .= '?' . $params;
+        // At this point URL is either relative or absolute path; let us find if it is relative and not . or ..
+        if ($path && '/' !== $path[0] && '.' !== $path[0]) {
+            if ($timestamp_age === null) {
+                $timestamp_age = static::$timestamp_age;
+            }
+            if ($timestamp_age > 0) {
+                // We want to add timestamp to the URI: do it only for existing files.
+                $realPath = @realpath(GANTRY5_ROOT . '/' . $path);
+                if ($realPath && is_file($realPath)) {
+                    $time = filemtime($realPath);
+                    // Only append timestamp for files that are less than the maximum age.
+                    if ($time > time() - $timestamp_age) {
+                        $parts['query'] = (!empty($parts['query']) ? "{$parts['query']}&" : '') . sprintf('%x', $time);
+                    }
+                }
+            }
+
+            // We need absolute URI instead of relative.
+            $path = rtrim(static::rootUri(), '/') . '/' . $path;
+        }
+
+        // Set absolute URI.
+        $uri = $path;
+
+        // Add query string back.
+        if (!empty($parts['query'])) {
+            if (!$uri) $uri = static::rootUri();
+            $uri .= '?' . $parts['query'];
         }
 
         // Add fragment back.
-        if ($fragment) {
-            $uri .= '#' . $fragment;
+        if (!empty($parts['fragment'])) {
+            if (!$uri) $uri = static::rootUri();
+            $uri .= '#' . $parts['fragment'];
         }
 
-        // TODO: add support to include domain..
-        return rtrim(static::rootUri(), '/') . '/' . $uri;
+        return static::domain($domain) . $uri;
+    }
+
+    /**
+     * UTF8 aware parse_url().
+     *
+     * @param  string $url
+     * @return array|bool
+     */
+    protected static function parseUrl($url)
+    {
+        $encodedUrl = preg_replace_callback(
+            '%[^:/@?&=#]+%usD',
+            function ($matches) { return urlencode($matches[0]); },
+            $url
+        );
+
+        // PHP versions below 5.4.7 have troubles with URLs without scheme, so lets help by fixing that.
+        // TODO: This is not needed in PHP >= 5.4.7, but for now we need to test if the function works.
+        if ('/' === $encodedUrl[0] && false !== strpos($encodedUrl, '://')) {
+            $schemeless = true;
+
+            // Fix the path so that parse_url() will not return false.
+            $parts = parse_url('fake://fake.com' . $encodedUrl);
+
+            // Remove the fake values.
+            unset($parts['scheme'], $parts['host']);
+
+        } else {
+            $parts = parse_url($encodedUrl);
+        }
+
+        if (!$parts) {
+            return false;
+        }
+
+        // PHP versions below 5.4.7 do not understand schemeless URLs starting with // either.
+        if (isset($schemeless) && !isset($parts['host']) && '//' == substr($encodedUrl, 0, 2)) {
+            // Path is stored in format: //[host]/[path], so let's fix it.
+            list($parts['host'], $path) = explode('/', substr($parts['path'], 2), 2);
+            $parts['path'] = "/{$path}";
+        }
+
+        foreach($parts as $name => $value) {
+            $parts[$name] = urldecode($value);
+        }
+
+        return $parts;
     }
 }

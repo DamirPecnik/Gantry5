@@ -68,12 +68,8 @@ layout:
       - [position-copyright-a 33.3,position-copyright-b 33.3,position-copyright-c 33.3]
       - [particle-copyright 40, spacer 30, particle-branding 30]
 
-  debug:
-    container:
-      - position-debug
-
   offcanvas:
-      - [particle-mobile-menu]
+    - particle-mobile-menu
 
   atoms:
-      - [atom-google-analytics]
+    - atom-google-analytics

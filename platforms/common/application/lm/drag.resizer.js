@@ -50,7 +50,7 @@ var Resizer = new prime({
 
     start: function(event, element, siblings, offset) {
         if (event && event.type.match(/^touch/i)) { event.preventDefault(); }
-        
+
         if (element.LMTooltip) { element.LMTooltip.remove(); }
         if (event.which && event.which !== 1) { return true; }
 
@@ -178,10 +178,11 @@ var Resizer = new prime({
         }, this));
 
         this.DRAG_EVENTS.EVENTS.STOP.forEach(bind(function(event) {
-            $(document).off(event, this.bound('move'));
+            $(document).off(event, this.bound('stop'));
         }, this));
 
-        if (this.origin.size !== this.getSize(this.element)) { this.history.push(this.builder.serialize()); }
+        if (event.target.matches('[data-lm-back], [data-lm-forward]')) { return; }
+        if (this.origin.size !== this.getSize(this.element)) { this.history.push(this.builder.serialize(), this.history.get().preset); }
     },
 
     evenResize: function(elements, animated) {

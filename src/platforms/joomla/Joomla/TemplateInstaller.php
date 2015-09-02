@@ -11,7 +11,13 @@
 
 namespace Gantry\Joomla;
 
+use Gantry\Component\Filesystem\Folder;
+use Gantry\Component\Theme\ThemeDetails;
+use Gantry\Framework\Gantry;
+use Gantry\Framework\Outlines;
+use Gantry\Framework\Services\ErrorServiceProvider;
 use RocketTheme\Toolbox\File\YamlFile;
+use RocketTheme\Toolbox\ResourceLocator\UniformResourceLocator;
 
 class TemplateInstaller
 {
@@ -86,7 +92,7 @@ class TemplateInstaller
     public function getDefaultStyle()
     {
         $style = \JTable::getInstance('Style', 'TemplatesTable');
-        $style->load(['home' => 1]);
+        $style->load(['home' => 1, 'client_id' => 0]);
 
         return $style;
     }
@@ -224,7 +230,7 @@ class TemplateInstaller
      */
     public function getMenu($type)
     {
-         /** @var \JTableMenu $table */
+         /** @var \JTableMenuType $table */
         $table = \JTable::getInstance('MenuType');
         $table->load(['menutype' => $type]);
 
@@ -239,6 +245,7 @@ class TemplateInstaller
      */
     public function createMenu($type, $title, $description)
     {
+        /** @var \JTableMenuType $table */
         $table = \JTable::getInstance('MenuType');
         $data  = array(
             'menutype'    => $type,
@@ -301,10 +308,54 @@ class TemplateInstaller
         $name = $this->extension->name;
         $path = JPATH_SITE . '/templates/' . $name;
 
+        // Remove compiled CSS files if they exist.
         $cssPath = $path . '/custom/css-compiled';
         if (is_dir($cssPath)) {
             \JFolder::delete($cssPath);
+        } elseif (is_file($cssPath)) {
+            \JFile::delete($cssPath);
         }
+
+        // Remove wrongly named file if it exists.
+        $md5path = $path . '/MD5SUM';
+        if (is_file($md5path)) {
+            \JFile::delete($md5path);
+        }
+
+        // Restart Gantry and initialize it.
+        $gantry = Gantry::restart();
+        $gantry['theme.name'] = $name;
+        $gantry['streams']->register();
+
+        // Only add error service if debug mode has been enabled.
+        if ($gantry->debug()) {
+            $gantry->register(new ErrorServiceProvider);
+        }
+
+        /** @var Platform $patform */
+        $patform = $gantry['platform'];
+
+        /** @var UniformResourceLocator $locator */
+        $locator = $gantry['locator'];
+        // Initialize theme stream.
+        $details = new ThemeDetails($name);
+        $locator->addPath('gantry-theme', '', $details->getPaths(), false, true);
+
+        // Initialize theme cache stream.
+        $cachePath = $patform->getCachePath() . '/' . $name;
+        Folder::create($cachePath);
+        $locator->addPath('gantry-cache', 'theme', [$cachePath], true, true);
+        $gantry['file.yaml.cache.path'] = $locator->findResource('gantry-cache://theme/compiled/yaml', true, true);
+
+        /** @var Outlines $outlines */
+        $outlines = $gantry['configurations'];
+
+        // Update positions in manifest file.
+        $positions = $outlines->positions();
+
+        $manifest = new Manifest($name);
+        $manifest->setPositions(array_keys($positions));
+        $manifest->save();
     }
 
     public function installMenus(array $menus = null, $parent = 1)

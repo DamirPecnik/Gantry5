@@ -14,8 +14,11 @@
 
 namespace Gantry\Component\Stylesheet;
 
+use Gantry\Component\Config\Config;
 use Gantry\Component\Gantry\GantryTrait;
+use Gantry\Framework\Gantry;
 use Leafo\ScssPhp\Colors;
+use RocketTheme\Toolbox\File\PhpFile;
 use RocketTheme\Toolbox\ResourceLocator\UniformResourceLocator;
 
 abstract class CssCompiler implements CssCompilerInterface
@@ -27,6 +30,8 @@ abstract class CssCompiler implements CssCompilerInterface
     protected $name;
 
     protected $debug = false;
+
+    protected $warnings = [];
 
     /**
      * @var array
@@ -57,6 +62,27 @@ abstract class CssCompiler implements CssCompilerInterface
      * @var array
      */
     protected $files;
+
+    /**
+     * @var bool
+     */
+    protected $production;
+
+    public function __construct()
+    {
+        $gantry = static::gantry();
+
+        /** @var Config $global */
+        $global = $gantry['global'];
+
+        // In production mode we do not need to do any other checks.
+        $this->production = (bool) $global->get('production');
+    }
+
+    public function getWarnings()
+    {
+        return $this->warnings;
+    }
 
     /**
      * @return string
@@ -168,6 +194,80 @@ abstract class CssCompiler implements CssCompilerInterface
         return $this;
     }
 
+    public function needsCompile($in, $variables)
+    {
+        $gantry = static::gantry();
+
+        /** @var UniformResourceLocator $locator */
+        $locator = $gantry['locator'];
+
+        $out = $this->getCssUrl($in);
+        $path = $locator->findResource($out);
+
+        // Check if CSS file exists at all.
+        if (!$path) {
+            $this->setVariables($variables());
+            return true;
+        }
+
+        if ($this->production) {
+            // Open the file to see if it contains development comment in the beginning of the file.
+            $handle = fopen($path, "rb");
+            $contents = fread($handle, 14);
+            fclose($handle);
+
+            if ($contents === '/* GANTRY5 DEV') {
+                $this->setVariables($variables());
+                return true;
+            }
+
+            // In production mode we do not need to do any other checks.
+            return false;
+        }
+
+        $uri = basename($out);
+        $metaFile = PhpFile::instance($locator->findResource("gantry-cache://theme/scss/{$uri}.php", true, true));
+
+        // Check if meta file exists.
+        if (!$metaFile->exists()) {
+            $this->setVariables($variables());
+            return true;
+        }
+
+        $content = $metaFile->content();
+        $metaFile->free();
+
+        // Check if filename in meta file matches.
+        if (empty($content['file']) || $content['file'] != $out) {
+            $this->setVariables($variables());
+            return true;
+        }
+
+        // Check if meta timestamp matches to CSS file.
+        if (filemtime($path) != $content['timestamp']) {
+            $this->setVariables($variables());
+            return true;
+        }
+
+        $this->setVariables($variables());
+
+        // Check if variables have been changed.
+        $oldVariables = isset($content['variables']) ? $content['variables'] : [];
+        if ($oldVariables != $this->getVariables()) {
+            return true;
+        }
+
+        // Check if any of the imported files have been changed.
+        $imports = isset($content['imports']) ? $content['imports'] : [];
+        foreach ($imports as $resource => $timestamp) {
+            $import = $locator->findResource($resource);
+            if (!$import || filemtime($import) != $timestamp) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public function setVariables(array $variables)
     {
@@ -175,7 +275,20 @@ abstract class CssCompiler implements CssCompilerInterface
 
         foreach($this->variables as &$value) {
             // Check variable against colors and units.
-            if (preg_match("/(^(#|rgba?|hsla?)|(%|rem|vh|vw|em|px|cm|mm|ch|vmin|vmax|in|pt|pc|ex)$)/i", $value)) {
+            /* Test regex against these:
+             * Should only match the ones marked as +
+             *      - family=Aguafina+Script
+             *      - #zzzzzz
+             *      - #fff
+             *      + #ffaaff
+             *      + 33em
+             *      + 0.5px
+             *      - 50 rem
+             *      - rgba(323,323,2323)
+             *      + rgba(125,200,100,0.3)
+             *      - rgb(120,12,12)
+             */
+            if (preg_match('/(^(#([a-fA-F0-9]{6})|(rgba\(\s*(0|[1-9]\d?|1\d\d?|2[0-4]\d|25[0-5])\s*,\s*(0|[1-9]\d?|1\d\d?|2[0-4]\d|25[0-5])\s*,\s*(0|[1-9]\d?|1\d\d?|2[0-4]\d|25[0-5])\s*,\s*((0.[0-9]+)|[01])\s*\)))|(\d+(\.\d+){0,1}(rem|em|ex|ch|vw|vh|vmin|vmax|%|px|cm|mm|in|pt|pc))$)/i', $value)) {
                 continue;
             }
 
@@ -201,5 +314,40 @@ abstract class CssCompiler implements CssCompilerInterface
         $this->compiler->reset();
 
         return $this;
+    }
+
+    protected function createMeta($out, $md5)
+    {
+        $gantry = Gantry::instance();
+
+        if ($this->production) {
+            return;
+        }
+
+        /** @var UniformResourceLocator $locator */
+        $locator = $gantry['locator'];
+
+        $uri = basename($out);
+        $metaFile = PhpFile::instance($locator->findResource("gantry-cache://theme/scss/{$uri}.php", true, true));
+        $data = [
+            'file' => $out,
+            'timestamp' => filemtime($locator->findResource($out)),
+            'md5' => $md5,
+            'variables' => $this->getVariables(),
+            'imports' => $this->compiler->getParsedFiles()
+        ];
+
+        // Attempt to lock the file for writing.
+        try {
+            $metaFile->lock(false);
+        } catch (\Exception $e) {
+            // Another process has locked the file; we will check this in a bit.
+        }
+        // If meta file wasn't already locked by another process, save it.
+        if ($metaFile->locked() !== false) {
+            $metaFile->save($data);
+            $metaFile->unlock();
+            $metaFile->free();
+        }
     }
 }

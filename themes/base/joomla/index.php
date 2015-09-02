@@ -16,10 +16,13 @@ $gantry = include __DIR__ . '/includes/gantry.php';
 /** @var \Gantry\Framework\Theme $theme */
 $theme = $gantry['theme'];
 
-/** @var \Gantry\Framework\Configurations $configurations */
+/** @var \Gantry\Framework\Outlines $configurations */
 $configurations = $gantry['configurations'];
+
+// All the custom twig variables can be defined in here:
+$context = array();
 
 // Render the page.
 echo $theme
     ->setLayout($configurations->current())
-    ->render('index.html.twig');
+    ->render('index.html.twig', $context);

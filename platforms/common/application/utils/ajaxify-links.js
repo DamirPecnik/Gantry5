@@ -10,14 +10,20 @@ var prime         = require('prime'),
     size          = require('mout/collection/size'),
     indexOf       = require('mout/array/indexOf'),
     merge         = require('mout/object/merge'),
+    keys          = require('mout/object/keys'),
     guid          = require('mout/random/guid'),
     toQueryString = require('mout/queryString/encode'),
     contains      = require('mout/string/contains'),
 
+    getParam      = require('mout/queryString/getParam'),
+    setParam      = require('mout/queryString/setParam'),
+
     request       = require('agent')(),
     History       = require('./history'),
     flags         = require('./flags-state'),
+    parseAjaxURI  = require('./get-ajax-url').parse,
     getAjaxSuffix = require('./get-ajax-suffix'),
+    lm            = require('../lm'),
     mm            = require('../menu');
 
 require('../ui/popover');
@@ -36,6 +42,7 @@ History.Adapter.bind(window, 'statechange', function() {
         mainheader = $('#main-header'),
         params = '';
 
+    if (Data.doNothing) { return true; }
 
     if (size(Data) && Data.parsed !== false && storage.get(Data.uuid)) {
         Data = storage.get(Data.uuid);
@@ -52,7 +59,7 @@ History.Adapter.bind(window, 'statechange', function() {
         Data.element = $('[href="' + url + '"]');
     }
 
-    URI = URI + getAjaxSuffix();
+    URI = parseAjaxURI(URI + getAjaxSuffix());
 
     var lis;
     if (sidebar && Data.element) {
@@ -82,21 +89,26 @@ History.Adapter.bind(window, 'statechange', function() {
     if (!ERROR) { modal.closeAll(); }
     request.url(URI + params).data(Data.extras || {}).method(Data.extras ? 'post' : 'get').send(function(error, response) {
         if (!response.body.success) {
-            ERROR = true;
-            modal.open({
-                content: response.body.html || response.body,
-                afterOpen: function(container) {
-                    if (!response.body.html) { container.style({ width: '90%' }); }
-                }
-            });
+            if (!ERROR) {
+                ERROR = true;
+                modal.open({
+                    content: response.body.html || response.body,
+                    afterOpen: function(container) {
+                        if (!response.body.html) { container.style({ width: '90%' }); }
+                    }
+                });
 
-            History.back();
+                History.back();
+            } else {
+                ERROR = false;
+            }
 
             if (Data.element) {
                 Data.element.hideIndicator();
             }
 
             return false;
+
         }
 
         var target = Data.parent ? Data.element.parent(Data.parent) : $(Data.target),
@@ -107,6 +119,7 @@ History.Adapter.bind(window, 'statechange', function() {
             destination.html(response.body.html);
             if (fader = (destination.matches('[data-g5-content]') ? destination : destination.find('[data-g5-content]'))) {
                 fader.style({ opacity: 0 });
+                if (isTopNavOrMenu) { $(navbar).attribute('tabindex', '-1').attribute('aria-hidden', 'true'); }
                 $('#navbar')[isTopNavOrMenu ? 'slideUp' : 'slideDown']();
                 fader.animate({ opacity: 1 });
             }
@@ -219,9 +232,33 @@ var selectorChangeEvent = function() {
 domready(function() {
     var body = $('body');
 
+    // Update NONCE if any
+    if (GANTRY_AJAX_NONCE) {
+        var currentURI = History.getPageUrl(),
+            currentNonce = getParam(currentURI, '_wpnonce'),
+            currentView = getParam(currentURI, 'view');
+
+        // hack to inject the default view in WP in case it's missing
+        if (!currentView) {
+            currentURI = setParam(currentURI, 'view', 'configurations/default/styles');
+            History.replaceState({ uuid: guid(), doNothing: true }, window.document.title, currentURI);
+        }
+
+        // refresh nonce
+        if (currentNonce !== GANTRY_AJAX_NONCE) {
+            currentURI = setParam(currentURI, '_wpnonce', GANTRY_AJAX_NONCE);
+            History.replaceState({ uuid: guid(), doNothing: true }, window.document.title, currentURI);
+            window.HHH = History;
+        }
+    }
+
     // back to configuration
     body.delegate('click', '.button-back-to-conf', function(event, element) {
         event.preventDefault();
+
+        var confSelector = $('#configuration-selector'),
+            outlineDeleted = body.outlineDeleted,
+            currentOutline = confSelector.value();
 
         ConfNavIndex = ConfNavIndex == -1 ? 1 : ConfNavIndex;
         var navbar = $('#navbar'),
@@ -237,6 +274,7 @@ domready(function() {
                             modal.close();
 
                             body.emit('click', { target: item });
+                            navbar.attribute('tabindex', null).attribute('aria-hidden', 'false');
                             navbar.slideDown();
                         };
 
@@ -266,7 +304,15 @@ domready(function() {
 
         element.showIndicator();
 
+        if (outlineDeleted == currentOutline) {
+            var ids = keys(confSelector.selectizeInstance.Options),
+                id = ids.shift();
+            body.outlineDeleted = null;
+            item.href(item.href().replace('/' + outlineDeleted + '/', '/' + id + '/').replace('style=' + outlineDeleted, 'style=' + id));
+        }
+
         body.emit('click', { target: item });
+        navbar.attribute('tabindex', null);
         navbar.slideDown();
     });
 

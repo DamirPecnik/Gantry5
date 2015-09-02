@@ -12,11 +12,40 @@
 
     <files>
         <filename plugin="gantry5">gantry5.php</filename>
+        <filename>MD5SUMS</filename>
         <folder>language</folder>
     </files>
 
     <config>
         <fields name="params">
+            <fieldset name="basic" label="PLG_SYSTEM_GANTRY5">
+                <field name="production"
+                       type="radio"
+                       class="btn-group btn-group-yesno"
+                       default="0"
+                       description="PLG_SYSTEM_GANTRY5_FIELD_PRODUCTION_DESC"
+                       label="PLG_SYSTEM_GANTRY5_FIELD_PRODUCTION_LABEL">
+                    <option value="1">JYES</option>
+                    <option value="0">JNO</option>
+                </field>
+
+                <field name="asset_timestamps"
+                       type="radio"
+                       class="btn-group btn-group-yesno"
+                       default="1"
+                       description="PLG_SYSTEM_GANTRY5_FIELD_ASSET_TIMESTAMPS_DESC"
+                       label="PLG_SYSTEM_GANTRY5_FIELD_ASSET_TIMESTAMPS_LABEL">
+                    <option value="1">JYES</option>
+                    <option value="0">JNO</option>
+                </field>
+
+                <field name="asset_timestamps_period"
+                       type="text"
+                       default="7"
+                       filter="float"
+                       description="PLG_SYSTEM_GANTRY5_FIELD_ASSET_TIMESTAMPS_PERIOD_DESC"
+                       label="PLG_SYSTEM_GANTRY5_FIELD_ASSET_TIMESTAMPS_PERIOD_LABEL"/>
+            </fieldset>
         </fields>
     </config>
 </extension>

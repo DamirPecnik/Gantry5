@@ -21,7 +21,7 @@ class Router extends BaseRouter
             'ajax' => $ajax,
             'location' => $this->resource,
             'method' => $this->method,
-            'params' => isset($_POST['params']) && is_string($_POST['params']) ? json_decode($_POST['params'], true) : []
+            'params' => $request->post->getJsonArray('params')
         ];
 /*
         if ($style) {
@@ -38,7 +38,6 @@ class Router extends BaseRouter
             'themes' => '',
 
             'picker/layouts' => '/layouts',
-            'picker/particles' => '/particles'
         ];
     }
 }

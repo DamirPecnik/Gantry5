@@ -1,28 +1,30 @@
 <div class="g-grid">
     <div class="g-block navbar-block">
         <nav id="gantry">
-            {% set style = location in ['menu', 'about', 'configurations']  ? ' style="overflow: hidden; height: 0;"' : '' %}
+            {% set style = location in ['menu', 'about', 'configurations']  ? ' style="overflow: hidden; height: 0; visibility: hidden;"' : '' %}
             <section id="navbar"{{ style|raw }}>
                 <ul>
                     {% include 'partials/configuration-selector.html.twig' %}
                     <li {{ (location == 'configurations/styles') ? 'class="active"' }}>
-                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'styles')|e }}"><i class="fa fa-fw fa-adjust"></i><span>Styles</span></a>
+                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'styles')|e }}"><i class="fa fa-fw fa-adjust"></i><span>{{ 'GANTRY5_PLATFORM_STYLES'|trans }}</span></a>
                     </li>
                     <li {{ (location == 'configurations/settings') ? 'class="active"' }}>
-                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'settings')|e }}"><i class="fa fa-fw fa-wrench"></i><span>Settings</span></a>
+                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'settings')|e }}"><i class="fa fa-fw fa-wrench"></i><span>{{ 'GANTRY5_PLATFORM_SETTINGS'|trans }}</span></a>
                     </li>
+                    {% if (configuration and configuration != 'default') or not gantry.platform.no_base_layout %}
                     <li {{ (location == 'configurations/layout') ? 'class="active"' }}>
-                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'layout')|e }}"><i class="fa fa-fw fa-columns"></i><span>Layout</span></a>
+                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'layout')|e }}"><i class="fa fa-fw fa-columns"></i><span>{{ 'GANTRY5_PLATFORM_LAYOUT'|trans }}</span></a>
                     </li>
+                    {% endif %}
                     {% if configuration and configuration != 'default' %}
                     <li {{ (location == 'configurations/assignments') ? 'class="active"' }}>
-                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'assignments')|e }}"><i class="fa fa-fw fa-check-square-o"></i><span>Assignments</span></a>
+                        <a data-g5-ajaxify data-g5-ajaxify-target="[data-g5-content-wrapper]" data-g5-ajaxify-params="{{ {"navbar": true}|json_encode|e('html_attr') }}" href="{{ gantry.route('configurations', configuration, 'assignments')|e }}"><i class="fa fa-fw fa-check-square-o"></i><span>{{ 'GANTRY5_PLATFORM_ASSIGNMENTS'|trans }}</span></a>
                     </li>
                     {% endif %}
                 </ul>
             </section>
         </nav>
-        <a href="{{ gantry.route('themes') }}">
+        <a href="{{ gantry.route('themes') }}" aria-hidden="true" tabindex="-1">
             <svg id="gantry-logo" viewBox="0 0 81 28" style="background-color:#ffffff00" version="1.1"
                 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve"
                 x="0px" y="0px" width="81px" height="28px"

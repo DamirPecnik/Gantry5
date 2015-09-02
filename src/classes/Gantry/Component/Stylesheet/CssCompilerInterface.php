@@ -17,6 +17,11 @@ namespace Gantry\Component\Stylesheet;
 interface CssCompilerInterface
 {
     /**
+     * @return array
+     */
+    public function getWarnings();
+
+    /**
      * @return string
      */
     public function getTarget();
@@ -61,7 +66,8 @@ interface CssCompilerInterface
     public function setVariables(array $variables);
     public function registerFunction($name, callable $callback);
     public function unregisterFunction($name);
-    public function compileFile($in, $out = null);
+    public function needsCompile($in, $variables);
+    public function compileFile($in);
 
     /**
      * @return $this

@@ -1,23 +1,28 @@
 <?php
 /**
+ * @package   Gantry 5 Theme
+ * @author    RocketTheme http://www.rockettheme.com
+ * @copyright Copyright (C) 2007 - 2015 RocketTheme, LLC
+ * @license   GNU/GPLv2 and later
+ *
+ * http://www.gnu.org/licenses/gpl-2.0.html
+ */
+
+defined( 'ABSPATH' ) or die;
+
+/*
  * The template for displaying Author Archive pages
- *
- * Methods for TimberHelper can be found in the /functions sub-directory
- *
- * @package  WordPress
- * @subpackage  Timber
- * @since    Timber 0.1
  */
 
 global $wp_query;
 
-$data = Timber::get_context();
-$data['posts'] = Timber::get_posts();
+$context = Timber::get_context();
+$context[ 'posts' ] = Timber::get_posts();
 
-if ( isset( $query_vars['author'] ) ) {
-	$author = new TimberUser( $wp_query->query_vars['author'] );
-	$data['author'] = $author;
-	$data['title'] = 'Author Archives: ' . $author->name();
+if( isset( $authordata ) ) {
+	$author = new TimberUser( $authordata->ID );
+	$context[ 'author' ] = $author;
+	$context[ 'title' ] = __( 'Author:', 'g5_hydrogen' ) . ' ' . $author->name();
 }
 
-Timber::render( array( 'author.twig', 'archive.twig' ), $data );
+Timber::render( [ 'author.html.twig', 'archive.html.twig', 'index.html.twig' ], $context );

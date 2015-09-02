@@ -8,7 +8,7 @@ form:
       type: input.checkbox
       label: Enabled
       description: Globally enable CSS/JS particles.
-      default: false
+      default: true
 
     css:
       type: collection.list
@@ -26,12 +26,23 @@ form:
           skip: true
 
         .location:
-          type: input.text
+          type: input.filepicker
           label: File Location
+          icon: fa-file-code-o
+          placeholder: 'http://cdn1.remote/file.css'
+          filter: '\.(css|less|scss|sass)$'
+          root: 'gantry-assets://'
+
+        .inline:
+          type: textarea.textarea
+          label: Inline CSS
+          description: Adds inline CSS for quick snippets.
 
         .extra:
           type: collection.keyvalue
           label: Tag attributes
+          key_placeholder: Key (data-*, style, ...)
+          value_placeholder: Value
           exclude: ['rel', 'href', 'type']
 
     javascript:
@@ -50,10 +61,26 @@ form:
           skip: true
 
         .location:
-          type: input.text
+          type: input.filepicker
           label: File Location
+          icon: fa-file-code-o
+          placeholder: 'http://cdn1.remote/file.js'
+          filter: '\.(jsx?|coffee)$'
+          root: 'gantry-assets://'
+
+        .inline:
+          type: textarea.textarea
+          label: Inline JavaScript
+          description: Adds inline JavaScript for quick snippets.
+
+        .in_footer:
+          type: input.checkbox
+          label: Before </body>
+          description: Whether you want the script to load at the end of the body tag or inside head
+          default: false
 
         .extra:
           type: collection.keyvalue
           label: Tag attributes
           exclude: ['src', 'type']
+
